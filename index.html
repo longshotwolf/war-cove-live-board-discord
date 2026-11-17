@@ -491,7 +491,7 @@ const POLL_MS = 3000;
    The house tape sends no CORS permission header, so no browser
    page can read it. Every read on this board runs off the Binance public
    feed — the house fallback — and the board says so on its face. */
-const BINANCE = (window.location.hostname.toLowerCase().endsWith("discordsays.com") ? "/.proxy/feed" : "https://data-api.binance.vision");
+const BINANCE = (window.location.hostname.toLowerCase().endsWith("discordsays.com") ? "/feed" : "https://data-api.binance.vision");
 
 async function binanceKlines(symbol, interval, limit){
   const r = await fetch(`${BINANCE}/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
