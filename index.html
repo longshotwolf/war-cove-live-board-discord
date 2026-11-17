@@ -657,7 +657,14 @@ function fmtSpread(symbol, spread){
    LIGHT LAW: a light means price is on the level NOW, plus a full 60-second
    flashing hold after a hit or a bounce off the point. Once price is off
    the point and the 60 seconds run out, every glow goes out. The hit record
-   (price · NYC time · count) stays on screen as plain unlit text. */
+   (price · NYC time · count) stays on screen as plain unlit text.
+   PRIME LAW (Warlord order Nov 17, 2026): a page load, a feed (re)connect,
+   or a candle roll PRIMES each cell silently — the standing level is adopted
+   with lights OFF and any already-fired hit for this candle restores as
+   plain text only. Nothing fires and nothing flashes at prime; only a
+   genuinely fresh extension AFTER the prime may fire. A cell is not ARMED
+   to light until price has been seen off its level since the prime, or a
+   fresh extension fires it. */
 const FRAMES = [
   {key:"MONTH", iv:"1M"}, {key:"WEEK", iv:"1w"}, {key:"DAY", iv:"1d"},
   {key:"4H", iv:"4h"}, {key:"6H", iv:"6h"}
@@ -676,6 +683,32 @@ function tempHitState(side, live, level){
   if(live >= level * (1 - HIT_BAND)) return {state:"hit"};
   return {state:"clear", dist:(level - live) / level * 100};
 }
+/* Fired hits persist per candle so a reload / reconnect restores the record
+   as plain text instead of re-firing it. Keyed side|symbol|frame + the
+   candle's open time, so a candle roll naturally starts clean. */
+function tempStoreKey(cell){ return "wc-temp-v1|" + cell.side + "|" + cell.symbol + "|" + cell.frame; }
+function tempPersist(cell){
+  if(!cell.record) return;
+  try{
+    localStorage.setItem(tempStoreKey(cell), JSON.stringify({
+      ct: cell.candleTime, price: cell.record.price,
+      time: cell.record.time.toISOString(), count: cell.record.count
+    }));
+  }catch(e){ /* storage unavailable: in-page state still governs this session */ }
+}
+function tempRestore(cell, candleTime){
+  try{
+    const raw = localStorage.getItem(tempStoreKey(cell));
+    if(!raw) return;
+    const s = JSON.parse(raw);
+    if(s && s.ct === candleTime && isFinite(s.price)){
+      cell.record = { price: s.price, time: new Date(s.time), count: s.count || 1 };
+    }
+  }catch(e){ /* no readable record: the cell primes clean */ }
+}
+function tempLit(cell, now){
+  return !!cell.armed && (cell.state === "hit" || now < cell.flashUntil);
+}
 function tempFireHit(cell, level){
   cell.record = {
     price: level,
@@ -683,6 +716,9 @@ function tempFireHit(cell, level){
     count: cell.record ? cell.record.count + 1 : 1
   };
   cell.flashUntil = Date.now() + TEMP_FLASH_MS;
+  cell.firedLive = true;
+  cell.armed = true;
+  tempPersist(cell);
 }
 function tempEvaluate(cell, candles, live){
   const ha = heikinAshi(candles);
@@ -692,23 +728,27 @@ function tempEvaluate(cell, candles, live){
     cell.candleTime = candleTime;
     cell.level = null; cell.record = null;
     cell.state = null; cell.flashUntil = 0;
+    cell.armed = false; cell.firedLive = false;
   }
   const extreme = cell.side === "bottom" ? forming.low : forming.high;
   if(cell.level === null){
+    /* PRIME — page load, feed (re)connect, or candle roll: adopt the standing
+       level SILENTLY. A hit already fired on this candle restores as plain
+       text, lights OFF. Nothing fires at prime, ever. */
     cell.level = extreme;
-    // price sitting on the standing level when first read = the hit stands
-    if(tempHitState(cell.side, live, extreme).state === "hit") tempFireHit(cell, extreme);
+    tempRestore(cell, candleTime);
   } else if(extreme !== cell.level){
     cell.level = extreme; // fresh extension of the extreme = a new hit
     tempFireHit(cell, extreme);
   }
   const now = Date.now();
   const res = tempHitState(cell.side, live, cell.level);
-  if(cell.state === "hit" && res.state !== "hit" && cell.flashUntil < now + TEMP_FLASH_MS)
+  if(res.state !== "hit") cell.armed = true; // price seen off the point: the cell is live
+  if(cell.firedLive && cell.state === "hit" && res.state !== "hit" && cell.flashUntil < now + TEMP_FLASH_MS)
     cell.flashUntil = now + TEMP_FLASH_MS; // bounce off the point: hold the flash
   cell.state = res.state;
   cell.dist = res.dist;
-  cell.lit = res.state === "hit" || now < cell.flashUntil;
+  cell.lit = tempLit(cell, now);
 }
 
 /* ---------- FOUR POINTS ----------
@@ -898,7 +938,7 @@ const tempCells = {}; // "bottom|LTCUSDT|MONTH" -> cell record
           stateEl: el.querySelector(".tstate"),
           recEl: el.querySelector(".trec"),
           candleTime:null, level:null, record:null,
-          state:null, flashUntil:0
+          state:null, flashUntil:0, armed:false, firedLive:false
         };
       }
     }
@@ -932,7 +972,7 @@ const oneCells = {}; // "one|bottom|LTCUSDT" -> cell record
         stateEl: el.querySelector(".tstate"),
         recEl: el.querySelector(".trec"),
         candleTime:null, level:null, record:null,
-        state:null, flashUntil:0
+        state:null, flashUntil:0, armed:false, firedLive:false
       };
     }
   }
@@ -962,7 +1002,7 @@ function tempRenderSideLights(){
     for(const k in tempCells){
       const c = tempCells[k];
       if(c.side !== side) continue;
-      c.lit = c.state === "hit" || Date.now() < c.flashUntil;
+      c.lit = tempLit(c, Date.now());
       c.el.classList.toggle("lit-b", side === "bottom" && c.lit);
       c.el.classList.toggle("lit-t", side === "top" && c.lit);
       if(c.lit && (!litCell || (c.record && litCell.record && c.record.time > litCell.record.time))) litCell = c;
@@ -982,7 +1022,7 @@ function oneRenderLights(){
   let litCell = null;
   for(const k in oneCells){
     const c = oneCells[k];
-    c.lit = c.state === "hit" || Date.now() < c.flashUntil;
+    c.lit = tempLit(c, Date.now());
     c.el.classList.toggle("lit-b", c.side === "bottom" && c.lit);
     c.el.classList.toggle("lit-t", c.side === "top" && c.lit);
     if(c.lit && (!litCell || (c.record && litCell.record && c.record.time > litCell.record.time))) litCell = c;
