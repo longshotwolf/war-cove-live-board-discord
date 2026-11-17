@@ -474,8 +474,8 @@
 
   <footer>WAR COVE LIVE BOARD · NEW YORK TIME<br>
   THE FLOOR IS HERE TO BE SEEN AND READ — STILL PORTRAITS ONLY, NO LIVE LINES, NO CONTROLS<br>
-  READS LIVE OFF THE BINANCE PUBLIC FEED — THE HOUSE FALLBACK FEED, NAMED PLAIN:<br>
-  THE HOUSE TAPE SENDS NO BROWSER PERMISSION, SO THIS BOARD RUNS ON BINANCE</footer>
+  <span id="feedFace">READS LIVE OFF THE BINANCE PUBLIC FEED — THE HOUSE FALLBACK FEED, NAMED PLAIN:<br>
+  THE HOUSE TAPE SENDS NO BROWSER PERMISSION, SO THIS BOARD RUNS ON BINANCE</span></footer>
 </div>
 
 <script>
@@ -491,9 +491,54 @@ const POLL_MS = 3000;
    The house tape sends no CORS permission header, so no browser
    page can read it. Every read on this board runs off the Binance public
    feed — the house fallback — and the board says so on its face. */
-const BINANCE = (window.location.hostname.toLowerCase().endsWith("discordsays.com") ? "/feed" : "https://data-api.binance.vision");
+const IN_DISCORD = window.location.hostname.toLowerCase().endsWith("discordsays.com");
+const BINANCE = "https://data-api.binance.vision";
+const BITUNIX = "/bx";
+const FEED_LABEL = IN_DISCORD ? "BITUNIX TAPE" : "BINANCE PUBLIC FEED";
+if(IN_DISCORD){ const ff = document.getElementById("feedFace"); if(ff) ff.innerHTML = "READS LIVE OFF THE BITUNIX TAPE — THE HOUSE TAPE ITSELF, NAMED PLAIN:<br>THE TAPE COMES INTO THIS ROOM THROUGH THE DOOR, SO THIS BOARD RUNS ON BITUNIX"; }
+
+/* Inside Discord the board drinks off the house tape itself: Discord's
+   proxy carries the call server-side, so the tape's missing browser
+   permission does not matter here. Binance's edge refuses the proxied
+   call (403, probed Nov 17, 2026); Bitunix answers it (200, real tape). */
+const IV_MS = {"1m":60000,"3m":180000,"5m":300000,"15m":900000,"30m":1800000,"1h":3600000,"2h":7200000,"4h":14400000,"6h":21600000,"12h":43200000,"1d":86400000,"1w":604800000,"1M":2592000000};
+let _bxTickers = null, _bxTickersAt = 0;
+async function bitunixTickers(){
+  if(_bxTickers && Date.now() - _bxTickersAt < 2500) return _bxTickers;
+  const r = await fetch(`${BITUNIX}/api/v1/futures/market/tickers`);
+  if(!r.ok) throw new Error("bitunix http "+r.status);
+  const j = await r.json();
+  if(!j || j.code !== 0 || !Array.isArray(j.data)) throw new Error("bitunix payload");
+  _bxTickers = j.data; _bxTickersAt = Date.now();
+  return _bxTickers;
+}
+async function bitunixKlines(symbol, interval, limit){
+  const r = await fetch(`${BITUNIX}/api/v1/futures/market/kline?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+  if(!r.ok) throw new Error("bitunix http "+r.status);
+  const j = await r.json();
+  if(!j || j.code !== 0 || !Array.isArray(j.data) || !j.data.length) throw new Error("bitunix payload");
+  const out = j.data.map(k => ({time:+k.time, open:+k.open, high:+k.high, low:+k.low, close:+k.close})).reverse();
+  /* Bitunix sends closed candles only — rebuild the forming candle off the live tape */
+  try{
+    const rows = await bitunixTickers();
+    const row = rows.find(x => x.symbol === symbol);
+    const live = row ? parseFloat(row.lastPrice) : NaN;
+    if(isFinite(live)){
+      const last = out[out.length - 1];
+      out.push({time:last.time + (IV_MS[interval] || 0), open:last.close, high:Math.max(last.close, live), low:Math.min(last.close, live), close:live});
+    }
+  }catch(e){ /* the closed series still reads if the tape call drops */ }
+  return out;
+}
+async function bitunixPrices(){
+  const rows = await bitunixTickers();
+  const out = {};
+  for(const row of rows){ if(SYMBOLS.includes(row.symbol)){ const p = parseFloat(row.lastPrice); if(isFinite(p)) out[row.symbol] = p; } }
+  return out;
+}
 
 async function binanceKlines(symbol, interval, limit){
+  if(IN_DISCORD) return bitunixKlines(symbol, interval, limit);
   const r = await fetch(`${BINANCE}/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
   if(!r.ok) throw new Error("binance http "+r.status);
   const j = await r.json();
@@ -501,6 +546,7 @@ async function binanceKlines(symbol, interval, limit){
   return j.map(k => ({time:k[0], open:+k[1], high:+k[2], low:+k[3], close:+k[4]}));
 }
 async function binancePrices(){
+  if(IN_DISCORD) return bitunixPrices();
   const syms = encodeURIComponent(JSON.stringify(SYMBOLS));
   const r = await fetch(`${BINANCE}/api/v3/ticker/price?symbols=${syms}`);
   if(!r.ok) throw new Error("binance http "+r.status);
@@ -816,7 +862,7 @@ async function poll(){
       if(prices[s] != null) renderMarket(s, prices[s]);
       if(spreads[s] != null) renderSpread(s, prices[s], spreads[s], reads[s] || null);
     }
-    statusEl.textContent = "● LIVE — BINANCE PUBLIC FEED · UPDATED " + nycTime.format(new Date()) + " NYC";
+    statusEl.textContent = "● LIVE — " + FEED_LABEL + " · UPDATED " + nycTime.format(new Date()) + " NYC";
   }catch(e){
     statusEl.textContent = "RECONNECTING TO THE FEED…";
   }
