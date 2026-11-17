@@ -360,6 +360,301 @@
     <div class="grid3" id="tf-grid-MONTH"></div>
   </section>
 
+  <section id="calla-room">
+    <h2>CALLA — CANDLE COMMENTARY</h2>
+    <div class="desk">
+      <div>
+        <div class="dname">CALLA</div>
+        <div class="djob">Candle Commentary — Voices This Board's Rooms</div>
+        <div class="dgrade">Grade record: <b>still building</b> — trained by Veda, the Trainer, against the graded record. Her seat is on this board by the Warlord's order (Nov 17, 2026): she reads THIS board's rooms — Sable's spread first, then Sierra's three minute, Terra's bottoms, Vega's tops, and the timeframe offices — word for word in the house candle language. Her spread figure is the Bitunix lane only: in the Discord room she reads Sable's room line straight off this board (the board runs Bitunix there); on the open web she relays Sable's Bitunix-lane figure from the house relay — never a Binance figure. A read that has not landed is HELD and never spoken stale.</div>
+      </div>
+    </div>
+    <div class="calla-controls">
+      <span class="calla-clabel">COIN</span>
+      <button type="button" class="calla-btn calla-coin" data-sym="LTCUSDT">Ł LTC</button>
+      <button type="button" class="calla-btn calla-coin" data-sym="BTCUSDT">₿ BTC</button>
+      <button type="button" class="calla-btn calla-coin" data-sym="ETHUSDT">Ξ ETH</button>
+      <button type="button" class="calla-btn calla-main" id="calla-test">TEST READ</button>
+      <span class="calla-clabel">HER VOICE</span>
+      <button type="button" class="calla-btn" id="calla-voice">ARIA</button>
+    </div>
+    <div class="calla-note" id="calla-voice-note">ARIA — her production voice files (Litecoin standing read, off the house relay). DEVICE — this device's voice, reading this board's rooms live, any coin.</div>
+    <div class="rows" id="calla-lines"></div>
+  </section>
+<style>
+  .calla-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0 6px;}
+  .calla-clabel{font-size:11px;letter-spacing:.22em;color:#7fd8ab;font-weight:800;}
+  .calla-btn{padding:9px 14px;border:1.5px solid var(--line);border-radius:10px;background:var(--panel);color:#eafff2;font-weight:800;letter-spacing:.12em;font-size:13px;cursor:pointer;}
+  .calla-btn:hover{background:rgba(34,255,136,.12);}
+  .calla-btn.on{border-color:#8dffc0;color:#8dffc0;}
+  .calla-main{border-color:#8dffc0;color:#8dffc0;}
+  .calla-note{font-size:12px;color:#7fd8ab;letter-spacing:.06em;margin-bottom:8px;line-height:1.6;}
+  #calla-lines .row{line-height:1.7;}
+  #calla-lines .held{color:#ffb3b3;}
+</style>
+<script>
+/* ================= CALLA — CANDLE COMMENTARY (her seat on this board) =================
+   Added by the Warlord's order, Nov 17, 2026 — the ONE addition to this
+   board; nothing else on the board changed. She voices THIS board's own
+   rooms: Sable's 6H spread first, Sierra's 3M, Terra's bottoms, Vega's
+   tops, then the cadence 1H/4H/6H/DAY/WEEK/MONTH — read off the rooms'
+   own rendered state, word for word in the house candle language.
+   SPREAD LANE LAW: her spread figure is the Bitunix lane only. When
+   this board itself runs the Bitunix tape (its Discord room), Sable's
+   room line IS the Bitunix figure and she reads it straight off the
+   room. On the open web (this board's named Binance fallback face) she
+   relays Sable's Bitunix-lane figure from the house relay's sable
+   block instead — never the fallback figure. Stale = HELD, unspoken. */
+(function(){
+  "use strict";
+  var NAMES3 = { LTCUSDT: "Litecoin", BTCUSDT: "Bitcoin", ETHUSDT: "Ethereum" };
+  var FRAME_SPOKEN = { "3M": "Three minute", "1H": "One hour", "4H": "Four hour",
+    "6H": "Six hour", "DAY": "Day", "WEEK": "Week", "MONTH": "Month" };
+  var FRAME_LOWER = { MONTH: "month", WEEK: "week", DAY: "day" };
+  var CADENCE = ["1H", "4H", "6H", "DAY", "WEEK", "MONTH"];
+  var RELAY = "https://longshotwolf.github.io/war-cove-candle-commentary/";
+
+  function figureWords(sym, spread){
+    var a = Math.abs(spread);
+    if (sym === "LTCUSDT"){
+      var cents = Math.round(a * 100);
+      return cents === 1 ? "one cent" : cents + " cents";
+    }
+    return a.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/,/g, "") + " dollars";
+  }
+  function spreadSpoken(sym, spread, bandText){
+    var name = NAMES3[sym], bw = String(bandText || "").toLowerCase();
+    if (spread === 0) return name + " six hour spread — flat, " + bw + ".";
+    var dir = spread < 0 ? "downside" : "upside";
+    return name + " six hour spread — " + figureWords(sym, spread) + " to the " + dir + ", " + bw + ".";
+  }
+  function wordToSpoken(sym, frameKey, word){
+    if (!word) return null;
+    var m = /^(GREEN|RED) ARMY (PUSHING|SLOWING)( — BIG MOVE TO THE (UPSIDE|DOWNSIDE))?$/.exec(word.trim());
+    if (!m) return null;
+    var army = m[1] === "GREEN" ? "Green" : "Red";
+    var base = NAMES3[sym] + ". " + FRAME_SPOKEN[frameKey] + ". " + army + " Army ";
+    if (m[3]) return base + "pushing — big move to the " + m[4].toLowerCase() + ".";
+    if (m[2] === "SLOWING") return base + "pushing but showing signs of slowing.";
+    return base + "pushing.";
+  }
+  function tempSpoken(sym, side, frameKey, priceText){
+    var name = NAMES3[sym];
+    if (side === "bottom")
+      return name + ". Temp bottom on the " + FRAME_LOWER[frameKey] + ". Long the bottom, short the top. " + priceText + ".";
+    return name + ". Temp top on the " + FRAME_LOWER[frameKey] + ". Short the top. Long the bottom. " + priceText + ".";
+  }
+  /* Pure line builder — rooms snapshot in, her lines out. The browser
+     glue below builds the snapshot off this board's rendered rooms;
+     the training harness builds the same snapshot off the board's own
+     core functions, so her lines can be graded line-for-line. */
+  function buildLines(r){
+    var out = [];
+    // 1) SABLE — spread first, Bitunix lane only.
+    if (r.lane === "bitunix" && r.sableRow && typeof r.sableRow.spread === "number"){
+      out.push({ key: "spread", label: "SABLE — 6H SPREAD (BITUNIX LANE)",
+        display: "Six hour spread — " + r.sableRow.spreadText + " · " + r.sableRow.bandText,
+        spoken: spreadSpoken(r.sym, r.sableRow.spread, r.sableRow.bandText) });
+    } else if (r.sableBx && r.sableBxFresh && typeof r.sableBx.spread === "number"){
+      out.push({ key: "spread", label: "SABLE — 6H SPREAD (BITUNIX LANE)",
+        display: "Six hour spread — " + r.sableBx.spreadText + " · " + r.sableBx.bandText,
+        spoken: spreadSpoken(r.sym, r.sableBx.spread, r.sableBx.bandText) });
+    } else {
+      out.push({ key: "spread", label: "SABLE — 6H SPREAD (BITUNIX LANE)",
+        display: "HELD — SABLE'S BITUNIX FIGURE HAS NOT LANDED", spoken: null, held: true });
+    }
+    // 2) SIERRA — the three minute, the room's own word.
+    var s3 = wordToSpoken(r.sym, "3M", r.surveyWord);
+    out.push({ key: "3M", label: "SIERRA — 3M",
+      display: r.surveyWord ? ("Three minute — " + r.surveyWord) : "HELD — SIERRA HAS NOT LANDED",
+      spoken: s3, held: !s3 });
+    // 3) TERRA / VEGA — standing levels shown; a lit hit is called whole.
+    for (var sideI = 0; sideI < 2; sideI++){
+      var side = sideI === 0 ? "bottom" : "top";
+      var frames = (r.temps && r.temps[side]) || {};
+      for (var fi = 0; fi < 3; fi++){
+        var fk = ["MONTH", "WEEK", "DAY"][fi];
+        var c = frames[fk];
+        if (!c || c.level == null) continue;
+        var isHit = c.state === "hit" || !!c.lit;
+        var line = { key: "temp-" + side + "-" + fk,
+          label: (side === "bottom" ? "TERRA — TEMP BOTTOM · " : "VEGA — TEMP TOP · ") + fk,
+          display: (side === "bottom" ? "Temp bottom on the " : "Temp top on the ") +
+            FRAME_LOWER[fk] + " — level " + c.levelText + (isHit ? " · HIT — PRICE ON IT" : ""),
+          spoken: null };
+        if (isHit) line.spoken = tempSpoken(r.sym, side, fk, c.levelText);
+        out.push(line);
+      }
+    }
+    // 4) THE CADENCE — the timeframe offices, each room's own word.
+    for (var ci = 0; ci < CADENCE.length; ci++){
+      var tf = CADENCE[ci];
+      var w = r.tfWords ? r.tfWords[tf] : null;
+      var sp = wordToSpoken(r.sym, tf, w);
+      out.push({ key: tf, label: tf + " OFFICE",
+        display: w ? (FRAME_SPOKEN[tf] + " — " + w) : ("HELD — " + tf + " OFFICE HAS NOT LANDED"),
+        spoken: sp, held: !sp });
+    }
+    return out;
+  }
+  window.CALLA_BOARD = { buildLines: buildLines, wordToSpoken: wordToSpoken,
+    spreadSpoken: spreadSpoken, tempSpoken: tempSpoken };
+
+  /* ---------- browser glue: snapshot off this board's rooms ---------- */
+  var sel = "LTCUSDT", voiceMode = "ARIA", armed = false, lastLines = [];
+  var sableBxCache = null, sableBxAt = 0, spokenHits = {};
+  function boardLane(){
+    try {
+      if (typeof IN_DISCORD !== "undefined" && IN_DISCORD) return "bitunix";
+      if (typeof FEED_LABEL !== "undefined" && FEED_LABEL === "BITUNIX TAPE") return "bitunix";
+    } catch (e) {}
+    return "fallback";
+  }
+  function fmtP(v){ return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function snapshot(){
+    var r = { sym: sel, lane: boardLane(), surveyWord: null, tfWords: {}, temps: { bottom: {}, top: {} },
+      sableRow: null, sableBx: null, sableBxFresh: false };
+    try {
+      var row = (typeof spreadRows !== "undefined") ? spreadRows[sel] : null;
+      if (row && row.spread && row.spread.textContent.trim() && row.spread.textContent.trim() !== "—"){
+        // numeric spread re-derived from the room's own figure text
+        var t = row.spread.textContent.trim();
+        var num = null;
+        if (/¢$/.test(t)) num = (parseFloat(t.replace(/[+−¢]/g, "")) / 100) * (t.indexOf("−") === 0 ? -1 : 1);
+        else num = parseFloat(t.replace(/[+$−,]/g, "")) * (t.indexOf("−") === 0 ? -1 : 1);
+        if (isFinite(num)) r.sableRow = { spread: num, spreadText: t, bandText: row.band.textContent.trim() };
+      }
+    } catch (e) {}
+    try {
+      var cell = document.getElementById("survey-" + sel);
+      if (cell){ var w = cell.querySelector(".word"); if (w && w.textContent.trim() !== "READING…") r.surveyWord = w.textContent.trim(); }
+    } catch (e) {}
+    try {
+      for (var i = 0; i < CADENCE.length; i++){
+        var tf = CADENCE[i];
+        var c2 = document.getElementById("tf-" + tf + "-" + sel);
+        if (c2){ var w2 = c2.querySelector(".word"); if (w2 && w2.textContent.trim() !== "READING…") r.tfWords[tf] = w2.textContent.trim(); }
+      }
+    } catch (e) {}
+    try {
+      if (typeof tempCells !== "undefined"){
+        for (var k in tempCells){
+          var c3 = tempCells[k];
+          if (c3.symbol !== sel) continue;
+          if (["MONTH", "WEEK", "DAY"].indexOf(c3.frame) < 0) continue;
+          if (c3.level == null) continue;
+          r.temps[c3.side][c3.frame] = { level: c3.level, levelText: fmtP(c3.level),
+            state: c3.state, lit: !!c3.lit };
+        }
+      }
+    } catch (e) {}
+    if (sableBxCache && Date.now() - sableBxAt < 60000){
+      var e2 = (sableBxCache.coins || {})[sel];
+      if (e2 && typeof e2.spread === "number"){
+        r.sableBx = { spread: e2.spread, spreadText: null, bandText: null };
+        try { r.sableBx.bandText = bandWord(sel, e2.spread); } catch (e3) {}
+        r.sableBx.spreadText = (e2.spread < 0 ? "−" : "+") + (sel === "LTCUSDT"
+          ? Math.round(Math.abs(e2.spread) * 100) + "¢"
+          : "$" + Math.abs(e2.spread).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        r.sableBxFresh = Date.now() - (sableBxCache.at || 0) <= 180000;
+      }
+    }
+    return r;
+  }
+  function fetchSableBx(){
+    fetch(RELAY + "candles.json?cb=" + Date.now()).then(function(res){ return res.json(); })
+      .then(function(j){ if (j && j.sable && j.sable.bitunix){ sableBxCache = j.sable.bitunix; sableBxAt = Date.now(); } })
+      .catch(function(){});
+  }
+  function render(){
+    lastLines = buildLines(snapshot());
+    var wrap = document.getElementById("calla-lines");
+    if (!wrap) return;
+    wrap.innerHTML = "";
+    for (var i = 0; i < lastLines.length; i++){
+      var L = lastLines[i];
+      var row = document.createElement("div");
+      row.className = "row";
+      row.innerHTML = '<span class="rcoin"></span><span class="' + (L.held ? "held" : "") + '"></span>';
+      row.querySelector(".rcoin").textContent = L.label;
+      row.lastElementChild.textContent = L.display;
+      wrap.appendChild(row);
+    }
+    // temp-hit calls: spoken whole, once per standing hit, once armed
+    if (armed){
+      for (var j = 0; j < lastLines.length; j++){
+        var t = lastLines[j];
+        if (t.key.indexOf("temp-") === 0 && t.spoken){
+          var hk = sel + "|" + t.key + "|" + t.display;
+          if (!spokenHits[hk]){ spokenHits[hk] = 1; speakDevice(t.spoken); }
+        }
+      }
+    }
+  }
+  function speak(text){
+    if (voiceMode === "ARIA" && sel === "LTCUSDT"){
+      // Her production voice: the house relay's Aria rundown files.
+      fetch(RELAY + "speech.json?cb=" + Date.now()).then(function(r){ return r.json(); })
+        .then(function(j){
+          var items = (j && j.rooms && j.rooms.rundown) || [];
+          playAria(items, 0);
+        }).catch(function(){ speakDevice(text); });
+      return;
+    }
+    speakDevice(text);
+  }
+  function playAria(items, i){
+    if (i >= items.length) return;
+    var a = new Audio(RELAY + "speech/" + items[i] + ".mp3");
+    a.onended = function(){ playAria(items, i + 1); };
+    a.onerror = function(){ playAria(items, i + 1); };
+    a.play().catch(function(){});
+  }
+  function speakDevice(text){
+    try {
+      var u = new SpeechSynthesisUtterance(text);
+      var vs = speechSynthesis.getVoices().filter(function(v){ return /^en/i.test(v.lang); });
+      var fem = [/google us english/i, /zira/i, /samantha/i, /female/i];
+      for (var i = 0; i < fem.length; i++){ var f = vs.find(function(v){ return fem[i].test(v.name); }); if (f){ u.voice = f; break; } }
+      speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+  function testRead(){
+    armed = true;
+    render();
+    if (voiceMode === "ARIA" && sel === "LTCUSDT"){ speak("rundown"); return; }
+    try { speechSynthesis.cancel(); } catch (e) {}
+    for (var i = 0; i < lastLines.length; i++){
+      if (lastLines[i].spoken) speakDevice(lastLines[i].spoken);
+    }
+  }
+  function wire(){
+    var coins = document.querySelectorAll(".calla-coin");
+    coins.forEach(function(b){
+      if (b.dataset.sym === sel) b.classList.add("on");
+      b.addEventListener("click", function(){
+        sel = b.dataset.sym;
+        coins.forEach(function(x){ x.classList.toggle("on", x === b); });
+        spokenHits = {};
+        render();
+      });
+    });
+    var t = document.getElementById("calla-test");
+    if (t) t.addEventListener("click", testRead);
+    var v = document.getElementById("calla-voice");
+    if (v) v.addEventListener("click", function(){
+      voiceMode = voiceMode === "ARIA" ? "DEVICE" : "ARIA";
+      v.textContent = voiceMode;
+    });
+    fetchSableBx();
+    setInterval(fetchSableBx, 30000);
+    render();
+    setInterval(render, 5000);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire);
+  else wire();
+})();
+</script>
   <section>
     <h2>FOUR POINTS — THE BIG 3</h2>
     <div class="desk">
