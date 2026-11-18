@@ -958,14 +958,17 @@ function surveyRead(symbol, raw, live){
   return { state, army, bigDir };
 }
 
-/* AGREEMENT RULE: when the 6H spread is at cycle size or beyond, the push
-   read carries the spread's army — cycle down is red army on both reads,
-   cycle up is green army on both. The two reads never contradict. */
+/* SPREAD ≠ PUSH — the Warlord's law (Nov 14, confirmed "Correct"): the
+   spread and the push are two separate facts, never blended into one
+   color. Sierra's word carries the three minute's OWN army, always; the
+   spread keeps its own color and band word on its own row. (The old
+   "agreement rule" override that recolored her word with the spread's
+   army past cycle size was removed Nov 18, 2026: while the 6H spread
+   sat at −30¢ or beyond it made her room print RED ARMY PUSHING on a
+   live GREEN three minute. Her read is the tape's read.) */
 const CYCLE_LINE = { LTCUSDT: 0.30, BTCUSDT: 300, ETHUSDT: 9, SOLUSDT: 2, BCHUSDT: 30, BNBUSDT: 2 };
 function composeWord(symbol, read, spread){
   let army = read.army;
-  if(spread != null && Math.abs(spread) >= CYCLE_LINE[symbol])
-    army = spread >= 0 ? "GREEN" : "RED";
   let word = army + " ARMY " + read.state;
   if(read.bigDir) word += army === "GREEN" ? " — BIG MOVE TO THE UPSIDE" : " — BIG MOVE TO THE DOWNSIDE";
   return { army, word };
