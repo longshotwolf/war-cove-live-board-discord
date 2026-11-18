@@ -752,7 +752,7 @@
     document.addEventListener("pointerdown", function(){ pumpAria(); });
     document.addEventListener("keydown", function(){ pumpAria(); });
     fetchSableBx();
-    setInterval(fetchSableBx, 30000);
+    setInterval(fetchSableBx, 10000);
     render();
     setInterval(render, 5000);
     discoverLane();
@@ -1579,7 +1579,7 @@ async function tfTick(){
   }catch(e){ /* next tick retries */ }
 }
 tfFetchKlines().then(tfTick);
-setInterval(tfFetchKlines, 30000);
+setInterval(tfFetchKlines, 10000);
 setInterval(tfTick, 5000);
 
 /* ---------- temp / one-minute / four-points data loops ---------- */
@@ -1630,7 +1630,7 @@ async function tempTick(){
 }
 tempFetchKlines().then(tempTick);
 oneFetchKlines().then(tempTick);
-setInterval(tempFetchKlines, 30000);
+setInterval(tempFetchKlines, 10000);
 setInterval(oneFetchKlines, 15000);
 setInterval(tempTick, 5000);
 setInterval(() => { tempRenderSideLights(); oneRenderLights(); }, 1000); // the 60-second holds expire on time
