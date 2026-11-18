@@ -580,13 +580,17 @@
       row.lastElementChild.textContent = L.display;
       wrap.appendChild(row);
     }
-    // temp-hit calls: spoken whole, once per standing hit, once armed
+    // temp-hit calls: spoken whole, once per standing hit, once armed.
+    // On the Aria lane (her standing Litecoin subject) the relay fires
+    // the same hit into her live queue in her own voice, whole form —
+    // the device call stands down there so the hit is never doubled.
     if (armed){
       for (var j = 0; j < lastLines.length; j++){
         var t = lastLines[j];
         if (t.key.indexOf("temp-") === 0 && t.spoken){
           var hk = sel + "|" + t.key + "|" + t.display;
-          if (!spokenHits[hk]){ spokenHits[hk] = 1; speakDevice(t.spoken); }
+          if (!spokenHits[hk]){ spokenHits[hk] = 1;
+            if (!(voiceMode === "ARIA" && sel === "LTCUSDT")) speakDevice(t.spoken); }
         }
       }
     }
@@ -597,18 +601,63 @@
       fetch(RELAY + "speech.json?cb=" + Date.now()).then(function(r){ return r.json(); })
         .then(function(j){
           var items = (j && j.rooms && j.rooms.rundown) || [];
-          playAria(items, 0);
+          for (var i = 0; i < items.length; i++) ariaEnqueue(items[i]);
         }).catch(function(){ speakDevice(text); });
       return;
     }
     speakDevice(text);
   }
-  function playAria(items, i){
-    if (i >= items.length) return;
-    var a = new Audio(RELAY + "speech/" + items[i] + ".mp3");
-    a.onended = function(){ playAria(items, i + 1); };
-    a.onerror = function(){ playAria(items, i + 1); };
-    a.play().catch(function(){});
+  /* ---------- ARIA LIVE LANE — her continuous read ----------
+     The Warlord's order (Nov 18, 2026): she reads CONTINUOUSLY —
+     every 3M roll, every cadence frame as it rolls, temp hits as
+     they fire, Sable's spread leading each 6H pass — and a plain
+     browser-source refresh must bring her straight back up reading
+     with NO arm click and NO TEST READ. So this lane is NOT gated
+     on `armed`: on load it seeds itself on the relay's standing
+     live queue (a refresh never replays the backlog), then polls
+     speech.json and plays each NEW live item the relay fires, in
+     order, in her Aria voice. If the browser's autoplay policy
+     holds a line, the line stays at the head of the queue and the
+     next poll — or any tap on the page — retries it. TEST READ now
+     only asks for the standing rundown on demand; the cadence runs
+     itself. Her standing subject is Litecoin (the relay's lane);
+     other coins and the DEVICE voice keep their TEST READ form. */
+  var ariaQ = [], ariaPlaying = false;
+  var livePlayed = {}, liveSeeded = false;
+  function ariaEnqueue(id){ ariaQ.push(id); pumpAria(); }
+  function pumpAria(){
+    if (ariaPlaying || !ariaQ.length) return;
+    ariaPlaying = true;
+    var id = ariaQ.shift();
+    var a = new Audio(RELAY + "speech/" + id + ".mp3");
+    var done = false;
+    var finish = function(){ if (done) return; done = true; ariaPlaying = false; pumpAria(); };
+    a.onended = finish;
+    a.onerror = finish;
+    try {
+      var p = a.play();
+      if (p && p.catch) p.catch(function(){
+        if (done) return; done = true; ariaPlaying = false;
+        ariaQ.unshift(id);  // autoplay policy held it — the line is
+                            // kept, retried on the next poll or a tap
+      });
+    } catch (e) { finish(); }
+  }
+  function pollLive(){
+    pumpAria();
+    if (voiceMode !== "ARIA" || sel !== "LTCUSDT") return;
+    fetch(RELAY + "speech.json?cb=" + Date.now()).then(function(r){ return r.json(); })
+      .then(function(j){
+        var live = (j && j.live) || [];
+        if (!liveSeeded){
+          for (var i = 0; i < live.length; i++) livePlayed[live[i]] = 1;
+          liveSeeded = true;
+          return;
+        }
+        for (var k = 0; k < live.length; k++){
+          if (!livePlayed[live[k]]){ livePlayed[live[k]] = 1; ariaEnqueue(live[k]); }
+        }
+      }).catch(function(){});
   }
   function speakDevice(text){
     try {
@@ -636,6 +685,7 @@
         sel = b.dataset.sym;
         coins.forEach(function(x){ x.classList.toggle("on", x === b); });
         spokenHits = {};
+        liveSeeded = false;  // reseed the live lane on the new subject
         render();
       });
     });
@@ -645,11 +695,18 @@
     if (v) v.addEventListener("click", function(){
       voiceMode = voiceMode === "ARIA" ? "DEVICE" : "ARIA";
       v.textContent = voiceMode;
+      liveSeeded = false;  // reseed the live lane on the new voice
     });
+    // A tap anywhere frees a policy-held Aria line (browser autoplay
+    // rules); in the OBS browser source the lane normally runs free.
+    document.addEventListener("pointerdown", function(){ pumpAria(); });
+    document.addEventListener("keydown", function(){ pumpAria(); });
     fetchSableBx();
     setInterval(fetchSableBx, 30000);
     render();
     setInterval(render, 5000);
+    pollLive();
+    setInterval(pollLive, 5000);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire);
   else wire();
