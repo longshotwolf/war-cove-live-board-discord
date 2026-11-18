@@ -598,7 +598,7 @@
   function speak(text){
     if (voiceMode === "ARIA" && sel === "LTCUSDT"){
       // Her production voice: the house relay's Aria rundown files.
-      fetch(RELAY + "speech.json?cb=" + Date.now()).then(function(r){ return r.json(); })
+      fetchSpeech()
         .then(function(j){
           var items = (j && j.rooms && j.rooms.rundown) || [];
           for (var i = 0; i < items.length; i++) ariaEnqueue(items[i]);
@@ -624,12 +624,54 @@
      other coins and the DEVICE voice keep their TEST READ form. */
   var ariaQ = [], ariaPlaying = false;
   var livePlayed = {}, liveSeeded = false;
+  /* ---------- SPEECH FAST LANE — her voice without the build queue ----------
+     The GitHub Pages copy of speech.json trails her speaker by the
+     Pages build queue — measured 1.5–5 minutes on Nov 18, 2026, a
+     full 3M candle: this seat was structurally one candle behind.
+     Her speaker now also serves the same playlist off the house
+     machine through a direct tunnel; the lane keeper publishes the
+     tunnel's current address as speech-endpoint.json in this repo.
+     This seat tries that endpoint first (short timeout) and falls
+     back to the Pages copy on any failure — degraded, never
+     broken. Cadence items carry their candle's expiry (exp): a
+     line that lands after its candle rolled is dropped, never
+     spoken as current — the newest line wins. */
+  var laneBase = null, liveBase = RELAY, liveExp = {};
+  function fetchWithTimeout(url, ms){
+    if (!("AbortController" in window)) return fetch(url);
+    var ctl = new AbortController();
+    var t = setTimeout(function(){ ctl.abort(); }, ms);
+    return fetch(url, { signal: ctl.signal }).then(function(r){ clearTimeout(t); return r; });
+  }
+  function discoverLane(){
+    fetch("speech-endpoint.json?cb=" + Date.now()).then(function(r){ return r.json(); })
+      .then(function(j){
+        if (j && j.endpoint) laneBase = String(j.endpoint).replace(/\/+$/, "");
+      }).catch(function(){});
+  }
+  function fetchSpeech(){
+    var viaLane = laneBase
+      ? fetchWithTimeout(laneBase + "/speech.json?cb=" + Date.now(), 2500)
+          .then(function(r){ if (!r.ok) throw new Error("lane"); return r.json(); })
+          .then(function(j){ liveBase = laneBase + "/"; return j; })
+      : Promise.reject(new Error("no lane"));
+    return viaLane.catch(function(){
+      return fetch(RELAY + "speech.json?cb=" + Date.now())
+        .then(function(r){ return r.json(); })
+        .then(function(j){ liveBase = RELAY; return j; });
+    });
+  }
   function ariaEnqueue(id){ ariaQ.push(id); pumpAria(); }
   function pumpAria(){
     if (ariaPlaying || !ariaQ.length) return;
     ariaPlaying = true;
     var id = ariaQ.shift();
-    var a = new Audio(RELAY + "speech/" + id + ".mp3");
+    if (liveExp[id] && Date.now() > liveExp[id]){
+      // One candle behind — never spoken as current. The line is
+      // dropped and the queue moves on to the newest line.
+      ariaPlaying = false; pumpAria(); return;
+    }
+    var a = new Audio(liveBase + "speech/" + id + ".mp3");
     var done = false;
     var finish = function(){ if (done) return; done = true; ariaPlaying = false; pumpAria(); };
     a.onended = finish;
@@ -646,7 +688,7 @@
   function pollLive(){
     pumpAria();
     if (voiceMode !== "ARIA" || sel !== "LTCUSDT") return;
-    fetch(RELAY + "speech.json?cb=" + Date.now()).then(function(r){ return r.json(); })
+    fetchSpeech()
       .then(function(j){
         var live = (j && j.live) || [];
         if (!liveSeeded){
@@ -655,7 +697,15 @@
           return;
         }
         for (var k = 0; k < live.length; k++){
-          if (!livePlayed[live[k]]){ livePlayed[live[k]] = 1; ariaEnqueue(live[k]); }
+          if (livePlayed[live[k]]) continue;
+          livePlayed[live[k]] = 1;
+          var it = (j.items || {})[live[k]];
+          if (it && it.exp){
+            liveExp[live[k]] = it.exp;
+            if (Date.now() > it.exp) continue;  // arrived one candle
+              // behind — dropped, never spoken as current
+          }
+          ariaEnqueue(live[k]);
         }
       }).catch(function(){});
   }
@@ -705,6 +755,8 @@
     setInterval(fetchSableBx, 30000);
     render();
     setInterval(render, 5000);
+    discoverLane();
+    setInterval(discoverLane, 60000);
     pollLive();
     setInterval(pollLive, 5000);
   }
