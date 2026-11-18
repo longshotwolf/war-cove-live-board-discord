@@ -8,7 +8,16 @@ The override removal has published here and verified; Calla's seat speech fast l
 landed here too (her rewire job). This copy's feed is unchanged: Bitunix through the
 Discord door in-room.
 
+## SPEED PASS (Nov 18, 2026 ~12:37 PM MST — the Warlord's word "Do it" on the live call)
+He reported this room copy lagging big time. Cause: the three kline lanes polled every
+30s through the Discord proxy door. Fix (this copy ONLY — the master stays frozen):
+fetchSableBx, tfFetchKlines, tempFetchKlines tightened 30000 → 10000. Reads, math,
+scales unchanged — zero accuracy cost. Published commit 0015e1ae; served page verified
+carrying all three 10000 intervals, served SHA-256 == local (see Hashes). Backup:
+index.html.bak-pre-speed-20261118. Closes by his eyes in the room.
+
 ## Hashes (SHA-256)
+- SPEED PASS served page == local build (verified Nov 18 ~19:44Z, commit 0015e1ae): f324a28126fa599c305cfbbcffb05769afea79ac3d27ceeaa7c16cd39b357bb5
 - FINAL served page == local build (verified Nov 18 ~02:31Z): d350865c5d5e4263a7ef618f6afc54b1474e23c122ffe34c72452c56f09e73c1
 - SERVED page at audit (commit fb1dcb0b64, Nov 18 01:05:42Z): c0e58e1cdcb25796e154eb4c001b07b0b97f38c260153269c0392e9ae0c9a7ef
 - LOCAL build at audit (Sierra fix applied locally 01:56Z, NOT yet published): 37faf349add67a60b5d97324f5f9af977f9c293da058b5ad5fd8c98c714a6525
