@@ -922,16 +922,13 @@ async function bitunixKlines(symbol, interval, limit){
   const j = await r.json();
   if(!j || j.code !== 0 || !Array.isArray(j.data) || !j.data.length) throw new Error("bitunix payload");
   const out = j.data.map(k => ({time:+k.time, open:+k.open, high:+k.high, low:+k.low, close:+k.close})).reverse();
-  /* Bitunix sends closed candles only — rebuild the forming candle off the live tape */
-  try{
-    const rows = await bitunixTickers();
-    const row = rows.find(x => x.symbol === symbol);
-    const live = row ? parseFloat(row.lastPrice) : NaN;
-    if(isFinite(live)){
-      const last = out[out.length - 1];
-      out.push({time:last.time + (IV_MS[interval] || 0), open:last.close, high:Math.max(last.close, live), low:Math.min(last.close, live), close:live});
-    }
-  }catch(e){ /* the closed series still reads if the tape call drops */ }
+  /* Bitunix sends closed candles only — and closed they stay. The
+     forming candle is built by frameSeries() in the core, off the
+     closed sub-candles inside the frame plus this page's own
+     tick-tracked extremes (the house construction, Nov 19, 2026).
+     The thin one-print synthesis that stood here stamped the live
+     price as Terra's level and let a forming low rise as price
+     recovered — QC fault F-4, closed by this change. */
   return out;
 }
 async function bitunixPrices(){
@@ -972,6 +969,97 @@ function heikinAshi(candles){
                low:  Math.min(c.low,  open, close) });
   }
   return out;
+}
+
+/* ---------- FORMING CANDLE — the house construction (Nov 19, 2026) ----------
+   Every frame's forming candle is built the way the house temp
+   watchers build it (telegram-bot/temp_watcher.py — the reference
+   implementation): the frame's CLOSED candles, plus a forming
+   candle composed from the closed sub-candles inside the frame's
+   current boundary, closed out by the live price, with the
+   board's own tick-tracked running extremes merged in before the
+   Heikin-Ashi is taken. A level read off this series is the
+   forming HA candle's own extreme: it cannot chase the live
+   price, cannot rise inside its own candle (a bottom), and
+   cannot freeze on a stale snapshot extreme.
+   Exchange note: Binance's kline answer already carries the
+   forming candle (real extremes, refreshed at fetch time); the
+   tick merge covers the seconds between fetches. Bitunix sends
+   closed candles only, so on that lane the sub-candle build IS
+   the forming candle — the thin one-print synthesis it replaces
+   (QC fault F-4) stamped the live price as the level and let a
+   "forming low" rise as price recovered. */
+function frameBoundary(iv, now){
+  now = (now == null ? Date.now() : now);
+  if(iv === "1M"){ const d = new Date(now); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1); }
+  if(iv === "1w"){ const day = 86400000; const ds = Math.floor(now / day) * day; return ds - ((new Date(ds).getUTCDay() + 6) % 7) * day; }
+  const secs = {"1m":60, "3m":180, "15m":900, "1h":3600, "4h":14400, "6h":21600, "1d":86400}[iv];
+  return Math.floor(now / (secs * 1000)) * (secs * 1000);
+}
+const TICK_IVS = ["1m", "3m", "1h", "4h", "6h", "1d", "1w", "1M"];
+const tickBook = {}; // "SYM|iv" -> {boundary, high, low} — this page's own live ticks
+function notePrices(prices){
+  const now = Date.now();
+  for(const s in prices){
+    const live = prices[s];
+    if(live == null || !isFinite(live)) continue;
+    for(let i = 0; i < TICK_IVS.length; i++){
+      const iv = TICK_IVS[i], b = frameBoundary(iv, now), k = s + "|" + iv;
+      const t = tickBook[k];
+      if(!t || t.boundary !== b) tickBook[k] = { boundary: b, high: live, low: live };
+      else { if(live > t.high) t.high = live; if(live < t.low) t.low = live; }
+    }
+  }
+}
+const SUB_FOR = {"3m":"1m", "1h":"3m", "4h":"3m", "6h":"3m", "1d":"15m", "1w":"4h", "1M":"4h"};
+const subCache = {}; // "SYM|iv" -> closed sub-candles (15m/4h fetched on the house 60s cadence; 3m/1m stashed from the board's own pulls)
+async function subFetchKlines(){
+  const jobs = [];
+  for(const s of SYMBOLS){
+    jobs.push(binanceKlines(s, "15m", 100).then(k => { subCache[s + "|15m"] = k; }).catch(() => {}));
+    jobs.push(binanceKlines(s, "4h", 200).then(k => { subCache[s + "|4h"] = k; }).catch(() => {}));
+  }
+  await Promise.all(jobs);
+}
+function frameSeries(symbol, iv, candles, live){
+  if(!candles || candles.length < 2 || live == null || !isFinite(live)) return candles;
+  const b = frameBoundary(iv);
+  const last = candles[candles.length - 1];
+  let closed, forming;
+  if(last.time >= b){
+    // the exchange series already carries the forming candle
+    closed = candles.slice(0, -1);
+    forming = { time: b, open: last.open, high: last.high, low: last.low, close: live };
+  } else {
+    // closed candles only — compose the forming candle from the
+    // closed sub-candles inside this frame's boundary
+    closed = candles.slice();
+    const subs = SUB_FOR[iv] ? (subCache[symbol + "|" + SUB_FOR[iv]] || []) : [];
+    let open = null, high = null, low = null;
+    for(let i = 0; i < subs.length; i++){
+      const c = subs[i];
+      if(c.time < b) continue;
+      if(open === null) open = c.open;
+      high = high === null ? c.high : Math.max(high, c.high);
+      low = low === null ? c.low : Math.min(low, c.low);
+    }
+    if(open === null){ open = last.close; high = last.close; low = last.close; }
+    forming = { time: b, open: open, high: high, low: low, close: live };
+  }
+  const tk = tickBook[symbol + "|" + iv];
+  if(tk && tk.boundary === b){
+    if(tk.high > forming.high) forming.high = tk.high;
+    if(tk.low < forming.low) forming.low = tk.low;
+  }
+  if(live > forming.high) forming.high = live;
+  if(live < forming.low) forming.low = live;
+  if(forming.open > forming.high) forming.high = forming.open;
+  if(forming.open < forming.low) forming.low = forming.open;
+  return closed.concat([forming]);
+}
+function tempCellIv(cell){
+  const f = FRAMES.find(f => f.key === cell.frame);
+  return f ? f.iv : "1m";
 }
 
 /* ---------- 3M SURVEY — the three minute ----------
@@ -1074,7 +1162,7 @@ function fmtSpread(symbol, spread){
    fresh extension fires it. */
 const FRAMES = [
   {key:"MONTH", iv:"1M"}, {key:"WEEK", iv:"1w"}, {key:"DAY", iv:"1d"},
-  {key:"4H", iv:"4h"}, {key:"6H", iv:"6h"}
+  {key:"6H", iv:"6h"}, {key:"4H", iv:"4h"}
 ];
 const HIT_BAND = 0.0015;    // hit while within 0.15% of the level
 const PIERCE_BAND = 0.0005; // more than 0.05% through it = through
@@ -1128,7 +1216,7 @@ function tempFireHit(cell, level){
   tempPersist(cell);
 }
 function tempEvaluate(cell, candles, live){
-  const ha = heikinAshi(candles);
+  const ha = heikinAshi(frameSeries(cell.symbol, tempCellIv(cell), candles, live));
   const forming = ha[ha.length - 1];
   const candleTime = candles[candles.length - 1].time;
   if(cell.candleTime !== candleTime){ // candle roll starts clean
@@ -1285,23 +1373,24 @@ const statusEl = document.getElementById("status");
 async function poll(){
   try{
     const prices = await binancePrices();
+    notePrices(prices);
     const jobs = [];
     for(const s of SYMBOLS) jobs.push(binanceKlines(s, "3m", 120).then(k => ({kind:"3m", s, k})));
     for(const s of SYMBOLS) jobs.push(binanceKlines(s, "6h", 60).then(k => ({kind:"6h", s, k})));
     const res = await Promise.all(jobs);
     const k3 = {}, k6 = {};
-    for(const r of res){ if(r.kind === "3m") k3[r.s] = r.k; else k6[r.s] = r.k; }
+    for(const r of res){ if(r.kind === "3m"){ k3[r.s] = r.k; subCache[r.s + "|3m"] = r.k; } else k6[r.s] = r.k; }
     const spreads = {};
     for(const s of SYMBOLS){
       if(prices[s] != null && k6[s]){
-        const ha6 = heikinAshi(k6[s]);
+        const ha6 = heikinAshi(frameSeries(s, "6h", k6[s], prices[s]));
         spreads[s] = prices[s] - ha6[ha6.length - 1].close;
       }
     }
     const reads = {};
     for(const s of SYMBOLS){
       if(prices[s] != null && k3[s]){
-        reads[s] = composeWord(s, surveyRead(s, k3[s], prices[s]), spreads[s]);
+        reads[s] = composeWord(s, surveyRead(s, frameSeries(s, "3m", k3[s], prices[s])), spreads[s]);
         renderSurvey(s, reads[s], prices[s]);
       }
     }
@@ -1493,7 +1582,7 @@ function fpRender(prices){
     const candles = tempKlineCache[cell.symbol + "|" + iv];
     const live = prices[cell.symbol];
     if(!candles || candles.length < 2 || live == null) continue;
-    const fp = fourPoints(heikinAshi(candles), live);
+    const fp = fourPoints(heikinAshi(frameSeries(cell.symbol, iv, candles, live)), live);
     for(const p of ["P1","P2","P3","P4"]){
       cell.pv[p].textContent = fmtPrice(fp.points[p]);
       cell.lines[p].classList.toggle("onp", fp.on === p);
@@ -1559,11 +1648,12 @@ async function tfFetchKlines(){
 async function tfTick(){
   try{
     const prices = await binancePrices();
+    notePrices(prices);
     const spreads = {};
     for(const s of SYMBOLS){
       const k6 = tfKlineCache[s + "|6h"];
       if(prices[s] != null && k6 && k6.length > 1){
-        const ha6 = heikinAshi(k6);
+        const ha6 = heikinAshi(frameSeries(s, "6h", k6, prices[s]));
         spreads[s] = prices[s] - ha6[ha6.length - 1].close;
       }
     }
@@ -1571,7 +1661,7 @@ async function tfTick(){
       for(const s of SYMBOLS){
         const candles = tfKlineCache[s + "|" + o.iv];
         if(candles && candles.length > 5 && prices[s] != null){
-          const read = composeWord(s, surveyRead(s, candles, prices[s]), spreads[s] != null ? spreads[s] : null);
+          const read = composeWord(s, surveyRead(s, frameSeries(s, o.iv, candles, prices[s])), spreads[s] != null ? spreads[s] : null);
           renderTf(o.key, s, read, prices[s]);
         }
       }
@@ -1598,7 +1688,7 @@ async function oneFetchKlines(){
   const jobs = [];
   for(const s of SYMBOLS){
     jobs.push(binanceKlines(s, "1m", 100)
-      .then(k => { oneKlineCache[s] = k; })
+      .then(k => { oneKlineCache[s] = k; subCache[s + "|1m"] = k; })
       .catch(() => {}));
   }
   await Promise.all(jobs);
@@ -1606,6 +1696,7 @@ async function oneFetchKlines(){
 async function tempTick(){
   try{
     const prices = await binancePrices();
+    notePrices(prices);
     for(const k in tempCells){
       const cell = tempCells[k];
       const iv = FRAMES.find(f => f.key === cell.frame).iv;
@@ -1633,6 +1724,8 @@ oneFetchKlines().then(tempTick);
 setInterval(tempFetchKlines, 10000);
 setInterval(oneFetchKlines, 15000);
 setInterval(tempTick, 5000);
+subFetchKlines();
+setInterval(subFetchKlines, 60000); // sub-candle seed refresh — the house watchers' 60-second cadence
 setInterval(() => { tempRenderSideLights(); oneRenderLights(); }, 1000); // the 60-second holds expire on time
 </script>
 <!-- WC-LINK-COUNTER key=live-board-discord fp=wcfp-f9a6cc58a8 -->
