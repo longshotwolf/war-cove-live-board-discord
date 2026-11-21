@@ -1,0 +1,1745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>War Cove Live Board</title>
+<style>
+  :root{
+    --green:#22ff88; --red:#ff4455; --holo:#39ffb0; --ink:#e8fff2;
+    --panel:rgba(6,20,14,.82); --line:rgba(57,255,176,.5);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:#04070a radial-gradient(1200px 600px at 50% -10%, rgba(20,90,60,.35), transparent 60%);
+    color:var(--ink);
+    font-family:"Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    min-height:100vh; padding:14px 12px 26px;
+  }
+  .frame{
+    max-width:1060px; margin:0 auto; padding:18px 16px 14px;
+    border:2px solid var(--line); border-radius:14px;
+    box-shadow:0 0 22px rgba(57,255,176,.28), inset 0 0 34px rgba(57,255,176,.07);
+    background:rgba(3,10,7,.55);
+  }
+  header{text-align:center; padding:6px 4px 12px; border-bottom:1px solid rgba(57,255,176,.35);}
+  h1{
+    font-size:clamp(26px,6vw,46px); letter-spacing:.14em; font-weight:800;
+    color:#8dffc0; text-shadow:0 0 14px rgba(57,255,176,.75), 0 0 42px rgba(57,255,176,.35);
+  }
+  #sub{margin-top:5px; font-size:12.5px; letter-spacing:.22em; color:#7fd8ab; text-transform:uppercase;}
+  #clock{
+    margin-top:6px; font-size:clamp(17px,3.6vw,26px); font-weight:700; letter-spacing:.08em;
+    color:#d9ffe9; font-variant-numeric:tabular-nums;
+  }
+  #status{margin-top:4px; font-size:12.5px; letter-spacing:.18em; color:#7fd8ab; text-transform:uppercase;}
+  section{margin-top:18px;}
+  h2{
+    font-size:clamp(14px,2.8vw,19px); letter-spacing:.22em; font-weight:800; color:#8dffc0;
+    text-shadow:0 0 10px rgba(57,255,176,.5); margin-bottom:10px; text-align:center;
+  }
+  .grid3{display:grid; grid-template-columns:repeat(3,1fr); gap:12px;}
+  @media (max-width:680px){ .grid3{grid-template-columns:1fr;} }
+  .cell{
+    background:var(--panel); border:1.5px solid var(--line); border-radius:12px;
+    padding:16px 12px 18px; text-align:center;
+    box-shadow:inset 0 0 22px rgba(57,255,176,.06);
+    transition:border-color .3s;
+  }
+  .cell .coin{font-size:15px; letter-spacing:.24em; font-weight:700; color:#b9ffd6;}
+  .cell .price{
+    margin-top:8px; font-size:clamp(22px,4.4vw,32px); font-weight:800;
+    font-variant-numeric:tabular-nums; color:#fff;
+  }
+  .cell .tick{margin-top:6px; font-size:19px; font-weight:900; min-height:1.2em; color:#7fd8ab;}
+  .cell .tick.up{color:var(--green);} .cell .tick.dn{color:var(--red);}
+  .cell .word{
+    margin-top:10px; font-size:clamp(19px,4.2vw,30px); font-weight:900; letter-spacing:.05em;
+    line-height:1.25; min-height:2.5em; display:flex; align-items:center; justify-content:center;
+  }
+  .cell[data-army="GREEN"]{border-color:rgba(34,255,136,.75);}
+  .cell[data-army="GREEN"] .word{color:var(--green); text-shadow:0 0 12px rgba(34,255,136,.65);}
+  .cell[data-army="RED"]{border-color:rgba(255,68,85,.75);}
+  .cell[data-army="RED"] .word{color:var(--red); text-shadow:0 0 12px rgba(255,68,85,.65);}
+  @keyframes flashGreen{0%,100%{background:rgba(34,255,136,.08);}50%{background:rgba(34,255,136,.48);}}
+  @keyframes flashRed{0%,100%{background:rgba(255,68,85,.08);}50%{background:rgba(255,68,85,.48);}}
+  .cell.flash-green{animation:flashGreen .9s ease-in-out infinite;}
+  .cell.flash-red{animation:flashRed .9s ease-in-out infinite;}
+  .rows{display:flex; flex-direction:column; gap:9px;}
+  .row{
+    display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 14px;
+    background:var(--panel); border:1.5px solid rgba(57,255,176,.4); border-radius:10px;
+    padding:11px 14px;
+  }
+  .rcoin{font-weight:800; letter-spacing:.14em; min-width:118px; color:#b9ffd6; font-size:15px;}
+  .rprice{font-weight:700; font-variant-numeric:tabular-nums; min-width:110px; font-size:16px;}
+  .rspread{font-weight:900; font-variant-numeric:tabular-nums; min-width:104px; font-size:17px;}
+  .rspread.pos{color:var(--green);} .rspread.neg{color:var(--red);}
+  .rband{font-weight:800; letter-spacing:.06em; font-size:16px; color:#ffe9a8;}
+  .rpush{margin-left:auto; font-weight:800; font-size:13.5px; letter-spacing:.05em; text-align:right;}
+  .rpush.GREEN{color:var(--green);} .rpush.RED{color:var(--red);}
+  .rpush .plabel{color:#7fd8ab; font-weight:600; letter-spacing:.14em; font-size:11.5px;}
+  /* ---------- TEMP panels — bottoms / tops / one minute ---------- */
+  .tempsec{border-radius:14px; padding:12px 10px 14px; transition:box-shadow .4s;}
+  .tempsec.glow-b{box-shadow:0 0 26px rgba(251,113,133,.35), inset 0 0 34px rgba(251,113,133,.08);}
+  .tempsec.glow-t{box-shadow:0 0 26px rgba(34,255,136,.35), inset 0 0 34px rgba(34,255,136,.08);}
+  .tempbar{
+    min-height:26px; border-radius:8px; margin-bottom:10px; padding:5px 10px;
+    background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08);
+    text-align:center; font-size:12.5px; font-weight:800; letter-spacing:.16em; color:#5f7a6a;
+    transition:background .3s, box-shadow .3s, color .3s;
+  }
+  .tempbar.lit-b{background:linear-gradient(90deg, rgba(251,113,133,.25), rgba(251,113,133,.7), rgba(251,113,133,.25)); box-shadow:0 0 16px rgba(251,113,133,.6); color:#ffe3e8;}
+  .tempbar.lit-t{background:linear-gradient(90deg, rgba(34,255,136,.22), rgba(34,255,136,.65), rgba(34,255,136,.22)); box-shadow:0 0 16px rgba(34,255,136,.55); color:#eafff2;}
+  .tempwrap{overflow-x:auto;}
+  .tgrid{display:grid; grid-template-columns:80px repeat(5, minmax(108px,1fr)); gap:7px; min-width:660px;}
+  .fpgrid{grid-template-columns:88px repeat(4, minmax(132px,1fr)); min-width:640px; margin-bottom:12px;}
+  .onegrid{grid-template-columns:80px repeat(2, minmax(150px,1fr)); min-width:420px;}
+  .thead{
+    font-size:11.5px; font-weight:800; letter-spacing:.18em; color:#7fd8ab;
+    text-align:center; padding:6px 2px;
+  }
+  .tcoin{
+    display:flex; align-items:center; font-weight:800; letter-spacing:.1em;
+    color:#b9ffd6; font-size:13.5px; padding:0 4px;
+  }
+  .tcell{
+    background:var(--panel); border:1.5px solid rgba(57,255,176,.35); border-radius:9px;
+    padding:8px 7px 9px; text-align:center; transition:border-color .3s;
+  }
+  .tcell .tlvl{font-size:15.5px; font-weight:800; font-variant-numeric:tabular-nums; color:#fff;}
+  .tcell .tstate{margin-top:4px; font-size:11px; font-weight:800; letter-spacing:.08em; color:#8fb8a2; line-height:1.35; min-height:2.6em;}
+  .tcell .trec{margin-top:3px; font-size:10.5px; font-weight:600; color:#a9c9b6; font-variant-numeric:tabular-nums; line-height:1.35;}
+  .tcell.through .tstate{color:#ffb3ab;}
+  @keyframes flashRose{0%,100%{background:rgba(251,113,133,.10);}50%{background:rgba(251,113,133,.48);}}
+  @keyframes flashEm{0%,100%{background:rgba(34,255,136,.08);}50%{background:rgba(34,255,136,.48);}}
+  .tcell.lit-b{animation:flashRose .9s ease-in-out infinite; border-color:rgba(251,113,133,.9);}
+  .tcell.lit-b .tstate{color:#ffd9de;}
+  .tcell.lit-t{animation:flashEm .9s ease-in-out infinite; border-color:rgba(34,255,136,.9);}
+  .tcell.lit-t .tstate{color:#d9ffe9;}
+  /* ---------- FOUR POINTS ---------- */
+  .fpline{
+    display:flex; justify-content:space-between; gap:8px; padding:1px 2px;
+    font-size:12.5px; font-variant-numeric:tabular-nums; color:#cfe9da;
+  }
+  .fpline .fpk{font-weight:800; letter-spacing:.08em; color:#7fd8ab;}
+  .fpline.mid .fpk{color:#ffe9a8;} .fpline.mid .fpv{font-weight:800; color:#fff;}
+  .fpline.onp{background:rgba(255,233,168,.16); border-radius:5px;}
+  .fpstate{margin-top:6px; font-size:11.5px; font-weight:900; letter-spacing:.1em; line-height:1.35; min-height:2.4em;}
+  .fpstate.GREEN{color:var(--green);} .fpstate.RED{color:var(--red);}
+  /* ---------- bot desks — portrait · name · job · grade record ---------- */
+  .desk{
+    display:flex; gap:12px; align-items:center;
+    background:var(--panel); border:1.5px solid var(--line); border-radius:12px;
+    padding:10px 12px; margin-bottom:12px; text-align:left;
+    box-shadow:inset 0 0 22px rgba(57,255,176,.06);
+  }
+  .desk img{
+    width:84px; height:96px; object-fit:cover; object-position:top center;
+    border-radius:9px; border:1.5px solid var(--line); flex:none; display:block;
+  }
+  .desk.leader img{width:112px; height:128px;}
+  .desk .dname{font-size:clamp(20px,4.2vw,29px); font-weight:900; letter-spacing:.14em; color:#fff; line-height:1.1;}
+  .desk .djob{margin-top:3px; font-size:12.5px; font-weight:700; letter-spacing:.18em; color:#8dffc0; text-transform:uppercase;}
+  .desk .dgrade{margin-top:5px; font-size:12.5px; color:#a9c9b6; line-height:1.5;}
+  .desk .dgrade b{color:#ffe9a8;}
+  .desks2{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:4px;}
+  @media (max-width:680px){ .desks2{grid-template-columns:1fr;} }
+  .desks2 .desk{margin-bottom:0;}
+  /* ---------- still offices — treasury · broadcast · production ---------- */
+  .pots{display:grid; grid-template-columns:repeat(3,1fr); gap:12px;}
+  @media (max-width:680px){ .pots{grid-template-columns:1fr;} }
+  .pot{
+    background:var(--panel); border:1.5px solid var(--line); border-radius:12px;
+    padding:16px 12px 18px; text-align:center;
+    box-shadow:inset 0 0 22px rgba(57,255,176,.06);
+  }
+  .pot .pname{font-size:15px; letter-spacing:.24em; font-weight:700; color:#b9ffd6;}
+  .pot .pstate{
+    margin-top:10px; font-size:clamp(18px,3.8vw,26px); font-weight:900; letter-spacing:.05em;
+    color:#ffe9a8; line-height:1.3;
+  }
+  .pot .pnote{margin-top:8px; font-size:12.5px; color:#a9c9b6; line-height:1.5;}
+  .orow{
+    display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 14px;
+    background:var(--panel); border:1.5px solid rgba(57,255,176,.4); border-radius:10px;
+    padding:11px 14px;
+  }
+  .olabel{font-weight:800; letter-spacing:.14em; min-width:210px; color:#b9ffd6; font-size:14px;}
+  .ovalue{font-weight:600; font-size:14.5px; color:#e8fff2; line-height:1.45;}
+  .ovalue b{color:#ffe9a8;}
+  .offstate{font-weight:900; color:var(--red); letter-spacing:.08em;}
+  .addr{font-variant-numeric:tabular-nums; word-break:break-all; color:#8dffc0; font-weight:700; font-size:14.5px;}
+  .office-note{
+    margin-top:9px; text-align:center; font-size:12px; letter-spacing:.14em; color:#7fd8ab;
+    text-transform:uppercase; line-height:1.7;
+  }
+  .subhead{
+    margin:14px 0 8px; text-align:center; font-size:12.5px; font-weight:800;
+    letter-spacing:.26em; color:#7fd8ab;
+  }
+  /* ---------- embeds ---------- */
+  .embedwrap iframe{
+    width:100%; border:1.5px solid var(--line); border-radius:12px; background:#000; display:block;
+  }
+  .openlink{
+    display:block; text-align:center; margin-top:9px; padding:11px 10px;
+    border:1.5px solid var(--line); border-radius:10px; background:var(--panel);
+    color:#8dffc0; font-weight:800; letter-spacing:.18em; font-size:14px; text-decoration:none;
+  }
+  .openlink:hover{background:rgba(34,255,136,.12);}
+  footer{
+    margin-top:20px; padding-top:12px; border-top:1px solid rgba(57,255,176,.35);
+    text-align:center; font-size:12.5px; letter-spacing:.2em; color:#7fd8ab; line-height:1.9;
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+  <header>
+    <h1>WAR COVE LIVE BOARD</h1>
+    <div id="sub">FULL BOARD · THE WHOLE FLOOR AT THEIR DESKS · READER ONLY</div>
+    <div id="clock">— NYC</div>
+    <div id="status">READING THE TAPE…</div>
+  </header>
+
+  <section>
+    <h2>THE FRONT DESK — PRESIDENT</h2>
+    <div class="desk leader">
+      <img src="bots/sheity.webp" alt="Sheity at the front desk">
+      <div>
+        <div class="dname">SHEITY</div>
+        <div class="djob">President — Front Desk · Presents the Day</div>
+        <div class="dgrade">Grade record: <b>no machine grade</b> — the front desk is graded by the Warlord's eyes. Still portrait: she is here to be seen and read — no live line, nothing connects, nothing operates.</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>THE MARKET — LIVE PRICES</h2>
+    <div class="grid3" id="market-grid"></div>
+  </section>
+
+  <section>
+    <h2>6H SPREAD — READING THE SIX HOUR</h2>
+    <div class="desk">
+      <img src="bots/sable.webp" alt="Sable at her desk">
+      <div>
+        <div class="dname">SABLE</div>
+        <div class="djob">Spread Watch — The Six Hour Spread</div>
+        <div class="dgrade">Grade record: doctrine test <b>passed clean</b> · QC sweep <b>55/55</b>.</div>
+      </div>
+    </div>
+    <div class="rows" id="spread-rows"></div>
+  </section>
+
+  <section>
+    <h2>3M SURVEY — READING THE THREE MINUTE</h2>
+    <div class="desk">
+      <img src="bots/sierra.webp" alt="Sierra at her desk">
+      <div>
+        <div class="dname">SIERRA</div>
+        <div class="djob">Survey — The Three Minute</div>
+        <div class="dgrade">Grade record: graded lane test <b>944/954</b> · QC sweep <b>113/113</b>.</div>
+      </div>
+    </div>
+    <div class="grid3" id="survey-grid"></div>
+  </section>
+
+  <section class="tempsec" id="temp-bottoms">
+    <h2>TEMP BOTTOMS</h2>
+    <div class="desk">
+      <img src="bots/terra.webp" alt="Terra at her desk">
+      <div>
+        <div class="dname">TERRA</div>
+        <div class="djob">Temp Watcher — Bottoms</div>
+        <div class="dgrade">Grade record: doctrine test <b>24/24</b> · QC sweep <b>24/24</b>.</div>
+      </div>
+    </div>
+    <div class="tempbar" id="bot-bar">NO BOTTOM HIT LIT</div>
+    <div class="tempwrap"><div class="tgrid" id="bot-grid"></div></div>
+  </section>
+
+  <section class="tempsec" id="temp-tops">
+    <h2>TEMP TOPS</h2>
+    <div class="desk">
+      <img src="bots/vega.webp" alt="Vega at her desk">
+      <div>
+        <div class="dname">VEGA</div>
+        <div class="djob">Temp Watcher — Tops</div>
+        <div class="dgrade">Grade record: doctrine test <b>24/24</b> · QC sweep <b>34/34</b>.</div>
+      </div>
+    </div>
+    <div class="tempbar" id="top-bar">NO TOP HIT LIT</div>
+    <div class="tempwrap"><div class="tgrid" id="top-grid"></div></div>
+  </section>
+
+  <section class="tempsec" id="temp-one">
+    <h2>ONE MINUTE — TEMP WATCH</h2>
+    <div class="desk">
+      <img src="bots/mina.webp" alt="Mina at her desk">
+      <div>
+        <div class="dname">MINA</div>
+        <div class="djob">One Minute — Temp Watch</div>
+        <div class="dgrade">Grade record: <b>still building</b>.</div>
+      </div>
+    </div>
+    <div class="tempbar" id="one-bar">NO 1M HIT LIT</div>
+    <div class="tempwrap"><div class="tgrid onegrid" id="one-grid"></div></div>
+  </section>
+
+  <section>
+    <h2>1H SURVEY — READING THE ONE HOUR</h2>
+    <div class="desk">
+      <div>
+        <div class="dname">HERA</div>
+        <div class="djob">Survey — The One Hour</div>
+        <div class="dgrade">Grade record: <b>still building</b>.</div>
+      </div>
+    </div>
+    <div class="grid3" id="tf-grid-1H"></div>
+  </section>
+
+  <section>
+    <h2>4H SURVEY — READING THE FOUR HOUR</h2>
+    <div class="desk">
+      <div>
+        <div class="dname">CORA</div>
+        <div class="djob">Survey — The Four Hour</div>
+        <div class="dgrade">Grade record: <b>still building</b>.</div>
+      </div>
+    </div>
+    <div class="grid3" id="tf-grid-4H"></div>
+  </section>
+
+  <section>
+    <h2>6H SURVEY — READING THE SIX HOUR</h2>
+    <div class="desk">
+      <div>
+        <div class="dname">JUNO</div>
+        <div class="djob">Survey — The Six Hour</div>
+        <div class="dgrade">Grade record: <b>still building</b>.</div>
+      </div>
+    </div>
+    <div class="grid3" id="tf-grid-6H"></div>
+  </section>
+
+  <section>
+    <h2>DAY SURVEY — READING THE DAY</h2>
+    <div class="desk">
+      <div>
+        <div class="dname">DIA</div>
+        <div class="djob">Survey — The Day</div>
+        <div class="dgrade">Grade record: <b>still building</b>.</div>
+      </div>
+    </div>
+    <div class="grid3" id="tf-grid-DAY"></div>
+  </section>
+
+  <section>
+    <h2>WEEK SURVEY — READING THE WEEK</h2>
+    <div class="desk">
+      <div>
+        <div class="dname">SELA</div>
+        <div class="djob">Survey — The Week</div>
+        <div class="dgrade">Grade record: <b>still building</b>.</div>
+      </div>
+    </div>
+    <div class="grid3" id="tf-grid-WEEK"></div>
+  </section>
+
+  <section>
+    <h2>MONTH SURVEY — READING THE MONTH</h2>
+    <div class="desk">
+      <div>
+        <div class="dname">MONA</div>
+        <div class="djob">Survey — The Month</div>
+        <div class="dgrade">Grade record: <b>still building</b>.</div>
+      </div>
+    </div>
+    <div class="grid3" id="tf-grid-MONTH"></div>
+  </section>
+
+  <section id="calla-room">
+    <h2>CALLA — CANDLE COMMENTARY</h2>
+    <div class="desk">
+      <div>
+        <div class="dname">CALLA</div>
+        <div class="djob">Candle Commentary — Voices This Board's Rooms</div>
+        <div class="dgrade">Grade record: <b>still building</b> — trained by Veda, the Trainer, against the graded record. Her seat is on this board by the Warlord's order (Nov 17, 2026): she reads THIS board's rooms — Sable's spread first, then Sierra's three minute, Terra's bottoms, Vega's tops, and the timeframe offices — word for word in the house candle language. Her spread figure is the Bitunix lane only: in the Discord room she reads Sable's room line straight off this board (the board runs Bitunix there); on the open web she relays Sable's Bitunix-lane figure from the house relay — never a Binance figure. A read that has not landed is HELD and never spoken stale.</div>
+      </div>
+    </div>
+    <div class="calla-controls">
+      <span class="calla-clabel">COIN</span>
+      <button type="button" class="calla-btn calla-coin" data-sym="LTCUSDT">Ł LTC</button>
+      <button type="button" class="calla-btn calla-coin" data-sym="BTCUSDT">₿ BTC</button>
+      <button type="button" class="calla-btn calla-coin" data-sym="ETHUSDT">Ξ ETH</button>
+      <button type="button" class="calla-btn calla-main" id="calla-test">TEST READ</button>
+      <span class="calla-clabel">HER VOICE</span>
+      <button type="button" class="calla-btn" id="calla-voice">ARIA</button>
+    </div>
+    <div class="calla-note" id="calla-voice-note">ARIA — her production voice files (Litecoin standing read, off the house relay). DEVICE — this device's voice, reading this board's rooms live, any coin.</div>
+    <div class="rows" id="calla-lines"></div>
+  </section>
+<style>
+  .calla-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0 6px;}
+  .calla-clabel{font-size:11px;letter-spacing:.22em;color:#7fd8ab;font-weight:800;}
+  .calla-btn{padding:9px 14px;border:1.5px solid var(--line);border-radius:10px;background:var(--panel);color:#eafff2;font-weight:800;letter-spacing:.12em;font-size:13px;cursor:pointer;}
+  .calla-btn:hover{background:rgba(34,255,136,.12);}
+  .calla-btn.on{border-color:#8dffc0;color:#8dffc0;}
+  .calla-main{border-color:#8dffc0;color:#8dffc0;}
+  .calla-note{font-size:12px;color:#7fd8ab;letter-spacing:.06em;margin-bottom:8px;line-height:1.6;}
+  #calla-lines .row{line-height:1.7;}
+  #calla-lines .held{color:#ffb3b3;}
+</style>
+<script>
+/* ================= CALLA — CANDLE COMMENTARY (her seat on this board) =================
+   Added by the Warlord's order, Nov 17, 2026 — the ONE addition to this
+   board; nothing else on the board changed. She voices THIS board's own
+   rooms: Sable's 6H spread first, Sierra's 3M, Terra's bottoms, Vega's
+   tops, then the cadence 1H/4H/6H/DAY/WEEK/MONTH — read off the rooms'
+   own rendered state, word for word in the house candle language.
+   SPREAD LANE LAW: her spread figure is the Bitunix lane only. When
+   this board itself runs the Bitunix tape (its Discord room), Sable's
+   room line IS the Bitunix figure and she reads it straight off the
+   room. On the open web (this board's named Binance fallback face) she
+   relays Sable's Bitunix-lane figure from the house relay's sable
+   block instead — never the fallback figure. Stale = HELD, unspoken. */
+(function(){
+  "use strict";
+  var NAMES3 = { LTCUSDT: "Litecoin", BTCUSDT: "Bitcoin", ETHUSDT: "Ethereum" };
+  var FRAME_SPOKEN = { "3M": "Three minute", "1H": "One hour", "4H": "Four hour",
+    "6H": "Six hour", "DAY": "Day", "WEEK": "Week", "MONTH": "Month" };
+  var FRAME_LOWER = { MONTH: "month", WEEK: "week", DAY: "day" };
+  var CADENCE = ["1H", "4H", "6H", "DAY", "WEEK", "MONTH"];
+  var RELAY = "https://longshotwolf.github.io/war-cove-candle-commentary/";
+
+  function figureWords(sym, spread){
+    var a = Math.abs(spread);
+    if (sym === "LTCUSDT"){
+      var cents = Math.round(a * 100);
+      return cents === 1 ? "one cent" : cents + " cents";
+    }
+    return a.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/,/g, "") + " dollars";
+  }
+  function spreadSpoken(sym, spread, bandText){
+    var name = NAMES3[sym], bw = String(bandText || "").toLowerCase();
+    if (spread === 0) return name + " six hour spread — flat, " + bw + ".";
+    var dir = spread < 0 ? "downside" : "upside";
+    return name + " six hour spread — " + figureWords(sym, spread) + " to the " + dir + ", " + bw + ".";
+  }
+  function wordToSpoken(sym, frameKey, word){
+    if (!word) return null;
+    var m = /^(GREEN|RED) ARMY (PUSHING|SLOWING)( — BIG MOVE TO THE (UPSIDE|DOWNSIDE))?$/.exec(word.trim());
+    if (!m) return null;
+    var army = m[1] === "GREEN" ? "Green" : "Red";
+    var base = NAMES3[sym] + ". " + FRAME_SPOKEN[frameKey] + ". " + army + " Army ";
+    if (m[3]) return base + "pushing — big move to the " + m[4].toLowerCase() + ".";
+    if (m[2] === "SLOWING") return base + "pushing but showing signs of slowing.";
+    return base + "pushing.";
+  }
+  function tempSpoken(sym, side, frameKey, priceText){
+    var name = NAMES3[sym];
+    if (side === "bottom")
+      return name + ". Temp bottom on the " + FRAME_LOWER[frameKey] + ". Long the bottom, short the top. " + priceText + ".";
+    return name + ". Temp top on the " + FRAME_LOWER[frameKey] + ". Short the top. Long the bottom. " + priceText + ".";
+  }
+  /* Pure line builder — rooms snapshot in, her lines out. The browser
+     glue below builds the snapshot off this board's rendered rooms;
+     the training harness builds the same snapshot off the board's own
+     core functions, so her lines can be graded line-for-line. */
+  function buildLines(r){
+    var out = [];
+    // 1) SABLE — spread first, Bitunix lane only.
+    if (r.lane === "bitunix" && r.sableRow && typeof r.sableRow.spread === "number"){
+      out.push({ key: "spread", label: "SABLE — 6H SPREAD (BITUNIX LANE)",
+        display: "Six hour spread — " + r.sableRow.spreadText + " · " + r.sableRow.bandText,
+        spoken: spreadSpoken(r.sym, r.sableRow.spread, r.sableRow.bandText) });
+    } else if (r.sableBx && r.sableBxFresh && typeof r.sableBx.spread === "number"){
+      out.push({ key: "spread", label: "SABLE — 6H SPREAD (BITUNIX LANE)",
+        display: "Six hour spread — " + r.sableBx.spreadText + " · " + r.sableBx.bandText,
+        spoken: spreadSpoken(r.sym, r.sableBx.spread, r.sableBx.bandText) });
+    } else {
+      out.push({ key: "spread", label: "SABLE — 6H SPREAD (BITUNIX LANE)",
+        display: "HELD — SABLE'S BITUNIX FIGURE HAS NOT LANDED", spoken: null, held: true });
+    }
+    // 2) SIERRA — the three minute, the room's own word.
+    var s3 = wordToSpoken(r.sym, "3M", r.surveyWord);
+    out.push({ key: "3M", label: "SIERRA — 3M",
+      display: r.surveyWord ? ("Three minute — " + r.surveyWord) : "HELD — SIERRA HAS NOT LANDED",
+      spoken: s3, held: !s3 });
+    // 3) TERRA / VEGA — standing levels shown; a lit hit is called whole.
+    for (var sideI = 0; sideI < 2; sideI++){
+      var side = sideI === 0 ? "bottom" : "top";
+      var frames = (r.temps && r.temps[side]) || {};
+      for (var fi = 0; fi < 3; fi++){
+        var fk = ["MONTH", "WEEK", "DAY"][fi];
+        var c = frames[fk];
+        if (!c || c.level == null) continue;
+        var isHit = c.state === "hit" || !!c.lit;
+        var line = { key: "temp-" + side + "-" + fk,
+          label: (side === "bottom" ? "TERRA — TEMP BOTTOM · " : "VEGA — TEMP TOP · ") + fk,
+          display: (side === "bottom" ? "Temp bottom on the " : "Temp top on the ") +
+            FRAME_LOWER[fk] + " — level " + c.levelText + (isHit ? " · HIT — PRICE ON IT" : ""),
+          spoken: null };
+        if (isHit) line.spoken = tempSpoken(r.sym, side, fk, c.levelText);
+        out.push(line);
+      }
+    }
+    // 4) THE CADENCE — the timeframe offices, each room's own word.
+    for (var ci = 0; ci < CADENCE.length; ci++){
+      var tf = CADENCE[ci];
+      var w = r.tfWords ? r.tfWords[tf] : null;
+      var sp = wordToSpoken(r.sym, tf, w);
+      out.push({ key: tf, label: tf + " OFFICE",
+        display: w ? (FRAME_SPOKEN[tf] + " — " + w) : ("HELD — " + tf + " OFFICE HAS NOT LANDED"),
+        spoken: sp, held: !sp });
+    }
+    return out;
+  }
+  window.CALLA_BOARD = { buildLines: buildLines, wordToSpoken: wordToSpoken,
+    spreadSpoken: spreadSpoken, tempSpoken: tempSpoken };
+
+  /* ---------- browser glue: snapshot off this board's rooms ---------- */
+  var sel = "LTCUSDT", voiceMode = "ARIA", armed = false, lastLines = [];
+  var sableBxCache = null, sableBxAt = 0, spokenHits = {};
+  function boardLane(){
+    try {
+      if (typeof IN_DISCORD !== "undefined" && IN_DISCORD) return "bitunix";
+      if (typeof FEED_LABEL !== "undefined" && FEED_LABEL === "BITUNIX TAPE") return "bitunix";
+    } catch (e) {}
+    return "fallback";
+  }
+  function fmtP(v){ return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function snapshot(){
+    var r = { sym: sel, lane: boardLane(), surveyWord: null, tfWords: {}, temps: { bottom: {}, top: {} },
+      sableRow: null, sableBx: null, sableBxFresh: false };
+    try {
+      var row = (typeof spreadRows !== "undefined") ? spreadRows[sel] : null;
+      if (row && row.spread && row.spread.textContent.trim() && row.spread.textContent.trim() !== "—"){
+        // numeric spread re-derived from the room's own figure text
+        var t = row.spread.textContent.trim();
+        var num = null;
+        if (/¢$/.test(t)) num = (parseFloat(t.replace(/[+−¢]/g, "")) / 100) * (t.indexOf("−") === 0 ? -1 : 1);
+        else num = parseFloat(t.replace(/[+$−,]/g, "")) * (t.indexOf("−") === 0 ? -1 : 1);
+        if (isFinite(num)) r.sableRow = { spread: num, spreadText: t, bandText: row.band.textContent.trim() };
+      }
+    } catch (e) {}
+    try {
+      var cell = document.getElementById("survey-" + sel);
+      if (cell){ var w = cell.querySelector(".word"); if (w && w.textContent.trim() !== "READING…") r.surveyWord = w.textContent.trim(); }
+    } catch (e) {}
+    try {
+      for (var i = 0; i < CADENCE.length; i++){
+        var tf = CADENCE[i];
+        var c2 = document.getElementById("tf-" + tf + "-" + sel);
+        if (c2){ var w2 = c2.querySelector(".word"); if (w2 && w2.textContent.trim() !== "READING…") r.tfWords[tf] = w2.textContent.trim(); }
+      }
+    } catch (e) {}
+    try {
+      if (typeof tempCells !== "undefined"){
+        for (var k in tempCells){
+          var c3 = tempCells[k];
+          if (c3.symbol !== sel) continue;
+          if (["MONTH", "WEEK", "DAY"].indexOf(c3.frame) < 0) continue;
+          if (c3.level == null) continue;
+          r.temps[c3.side][c3.frame] = { level: c3.level, levelText: fmtP(c3.level),
+            state: c3.state, lit: !!c3.lit };
+        }
+      }
+    } catch (e) {}
+    if (sableBxCache && Date.now() - sableBxAt < 60000){
+      var e2 = (sableBxCache.coins || {})[sel];
+      if (e2 && typeof e2.spread === "number"){
+        r.sableBx = { spread: e2.spread, spreadText: null, bandText: null };
+        try { r.sableBx.bandText = bandWord(sel, e2.spread); } catch (e3) {}
+        r.sableBx.spreadText = (e2.spread < 0 ? "−" : "+") + (sel === "LTCUSDT"
+          ? Math.round(Math.abs(e2.spread) * 100) + "¢"
+          : "$" + Math.abs(e2.spread).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        r.sableBxFresh = Date.now() - (sableBxCache.at || 0) <= 180000;
+      }
+    }
+    return r;
+  }
+  function fetchSableBx(){
+    fetch(RELAY + "candles.json?cb=" + Date.now()).then(function(res){ return res.json(); })
+      .then(function(j){ if (j && j.sable && j.sable.bitunix){ sableBxCache = j.sable.bitunix; sableBxAt = Date.now(); } })
+      .catch(function(){});
+  }
+  function render(){
+    lastLines = buildLines(snapshot());
+    var wrap = document.getElementById("calla-lines");
+    if (!wrap) return;
+    wrap.innerHTML = "";
+    for (var i = 0; i < lastLines.length; i++){
+      var L = lastLines[i];
+      var row = document.createElement("div");
+      row.className = "row";
+      row.innerHTML = '<span class="rcoin"></span><span class="' + (L.held ? "held" : "") + '"></span>';
+      row.querySelector(".rcoin").textContent = L.label;
+      row.lastElementChild.textContent = L.display;
+      wrap.appendChild(row);
+    }
+    // temp-hit calls: spoken whole, once per standing hit, once armed.
+    // On the Aria lane (her standing Litecoin subject) the relay fires
+    // the same hit into her live queue in her own voice, whole form —
+    // the device call stands down there so the hit is never doubled.
+    if (armed){
+      for (var j = 0; j < lastLines.length; j++){
+        var t = lastLines[j];
+        if (t.key.indexOf("temp-") === 0 && t.spoken){
+          var hk = sel + "|" + t.key + "|" + t.display;
+          if (!spokenHits[hk]){ spokenHits[hk] = 1;
+            if (!(voiceMode === "ARIA" && sel === "LTCUSDT")) speakDevice(t.spoken); }
+        }
+      }
+    }
+  }
+  function speak(text){
+    if (voiceMode === "ARIA" && sel === "LTCUSDT"){
+      // Her production voice: the house relay's Aria rundown files.
+      fetchSpeech()
+        .then(function(j){
+          var items = (j && j.rooms && j.rooms.rundown) || [];
+          for (var i = 0; i < items.length; i++) ariaEnqueue(items[i]);
+        }).catch(function(){ speakDevice(text); });
+      return;
+    }
+    speakDevice(text);
+  }
+  /* ---------- ARIA LIVE LANE — her continuous read ----------
+     The Warlord's order (Nov 18, 2026): she reads CONTINUOUSLY —
+     every 3M roll, every cadence frame as it rolls, temp hits as
+     they fire, Sable's spread leading each 6H pass — and a plain
+     browser-source refresh must bring her straight back up reading
+     with NO arm click and NO TEST READ. So this lane is NOT gated
+     on `armed`: on load it seeds itself on the relay's standing
+     live queue (a refresh never replays the backlog), then polls
+     speech.json and plays each NEW live item the relay fires, in
+     order, in her Aria voice. If the browser's autoplay policy
+     holds a line, the line stays at the head of the queue and the
+     next poll — or any tap on the page — retries it. TEST READ now
+     only asks for the standing rundown on demand; the cadence runs
+     itself. Her standing subject is Litecoin (the relay's lane);
+     other coins and the DEVICE voice keep their TEST READ form. */
+  var ariaQ = [], ariaPlaying = false;
+  var livePlayed = {}, liveSeeded = false;
+  /* ---------- SPEECH FAST LANE — her voice without the build queue ----------
+     The GitHub Pages copy of speech.json trails her speaker by the
+     Pages build queue — measured 1.5–5 minutes on Nov 18, 2026, a
+     full 3M candle: this seat was structurally one candle behind.
+     Her speaker now also serves the same playlist off the house
+     machine through a direct tunnel; the lane keeper publishes the
+     tunnel's current address as speech-endpoint.json in this repo.
+     This seat tries that endpoint first (short timeout) and falls
+     back to the Pages copy on any failure — degraded, never
+     broken. Cadence items carry their candle's expiry (exp): a
+     line that lands after its candle rolled is dropped, never
+     spoken as current — the newest line wins. */
+  var laneBase = null, liveBase = RELAY, liveExp = {};
+  function fetchWithTimeout(url, ms){
+    if (!("AbortController" in window)) return fetch(url);
+    var ctl = new AbortController();
+    var t = setTimeout(function(){ ctl.abort(); }, ms);
+    return fetch(url, { signal: ctl.signal }).then(function(r){ clearTimeout(t); return r; });
+  }
+  function discoverLane(){
+    fetch("speech-endpoint.json?cb=" + Date.now()).then(function(r){ return r.json(); })
+      .then(function(j){
+        if (j && j.endpoint) laneBase = String(j.endpoint).replace(/\/+$/, "");
+      }).catch(function(){});
+  }
+  function fetchSpeech(){
+    var viaLane = laneBase
+      ? fetchWithTimeout(laneBase + "/speech.json?cb=" + Date.now(), 2500)
+          .then(function(r){ if (!r.ok) throw new Error("lane"); return r.json(); })
+          .then(function(j){ liveBase = laneBase + "/"; return j; })
+      : Promise.reject(new Error("no lane"));
+    return viaLane.catch(function(){
+      return fetch(RELAY + "speech.json?cb=" + Date.now())
+        .then(function(r){ return r.json(); })
+        .then(function(j){ liveBase = RELAY; return j; });
+    });
+  }
+  function ariaEnqueue(id){ ariaQ.push(id); pumpAria(); }
+  function pumpAria(){
+    if (ariaPlaying || !ariaQ.length) return;
+    ariaPlaying = true;
+    var id = ariaQ.shift();
+    if (liveExp[id] && Date.now() > liveExp[id]){
+      // One candle behind — never spoken as current. The line is
+      // dropped and the queue moves on to the newest line.
+      ariaPlaying = false; pumpAria(); return;
+    }
+    var a = new Audio(liveBase + "speech/" + id + ".mp3");
+    var done = false;
+    var finish = function(){ if (done) return; done = true; ariaPlaying = false; pumpAria(); };
+    a.onended = finish;
+    a.onerror = finish;
+    try {
+      var p = a.play();
+      if (p && p.catch) p.catch(function(){
+        if (done) return; done = true; ariaPlaying = false;
+        ariaQ.unshift(id);  // autoplay policy held it — the line is
+                            // kept, retried on the next poll or a tap
+      });
+    } catch (e) { finish(); }
+  }
+  function pollLive(){
+    pumpAria();
+    if (voiceMode !== "ARIA" || sel !== "LTCUSDT") return;
+    fetchSpeech()
+      .then(function(j){
+        var live = (j && j.live) || [];
+        if (!liveSeeded){
+          for (var i = 0; i < live.length; i++) livePlayed[live[i]] = 1;
+          liveSeeded = true;
+          return;
+        }
+        for (var k = 0; k < live.length; k++){
+          if (livePlayed[live[k]]) continue;
+          livePlayed[live[k]] = 1;
+          var it = (j.items || {})[live[k]];
+          if (it && it.exp){
+            liveExp[live[k]] = it.exp;
+            if (Date.now() > it.exp) continue;  // arrived one candle
+              // behind — dropped, never spoken as current
+          }
+          ariaEnqueue(live[k]);
+        }
+      }).catch(function(){});
+  }
+  function speakDevice(text){
+    try {
+      var u = new SpeechSynthesisUtterance(text);
+      var vs = speechSynthesis.getVoices().filter(function(v){ return /^en/i.test(v.lang); });
+      var fem = [/google us english/i, /zira/i, /samantha/i, /female/i];
+      for (var i = 0; i < fem.length; i++){ var f = vs.find(function(v){ return fem[i].test(v.name); }); if (f){ u.voice = f; break; } }
+      speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+  function testRead(){
+    armed = true;
+    render();
+    if (voiceMode === "ARIA" && sel === "LTCUSDT"){ speak("rundown"); return; }
+    try { speechSynthesis.cancel(); } catch (e) {}
+    for (var i = 0; i < lastLines.length; i++){
+      if (lastLines[i].spoken) speakDevice(lastLines[i].spoken);
+    }
+  }
+  function wire(){
+    var coins = document.querySelectorAll(".calla-coin");
+    coins.forEach(function(b){
+      if (b.dataset.sym === sel) b.classList.add("on");
+      b.addEventListener("click", function(){
+        sel = b.dataset.sym;
+        coins.forEach(function(x){ x.classList.toggle("on", x === b); });
+        spokenHits = {};
+        liveSeeded = false;  // reseed the live lane on the new subject
+        render();
+      });
+    });
+    var t = document.getElementById("calla-test");
+    if (t) t.addEventListener("click", testRead);
+    var v = document.getElementById("calla-voice");
+    if (v) v.addEventListener("click", function(){
+      voiceMode = voiceMode === "ARIA" ? "DEVICE" : "ARIA";
+      v.textContent = voiceMode;
+      liveSeeded = false;  // reseed the live lane on the new voice
+    });
+    // A tap anywhere frees a policy-held Aria line (browser autoplay
+    // rules); in the OBS browser source the lane normally runs free.
+    document.addEventListener("pointerdown", function(){ pumpAria(); });
+    document.addEventListener("keydown", function(){ pumpAria(); });
+    fetchSableBx();
+    setInterval(fetchSableBx, 10000);
+    render();
+    setInterval(render, 5000);
+    discoverLane();
+    setInterval(discoverLane, 60000);
+    pollLive();
+    setInterval(pollLive, 5000);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire);
+  else wire();
+})();
+</script>
+  <section>
+    <h2>FOUR POINTS — THE BIG 3</h2>
+    <div class="desk">
+      <img src="bots/nova.webp" alt="Nova at her desk">
+      <div>
+        <div class="dname">NOVA</div>
+        <div class="djob">Four Points Watcher — The Big 3</div>
+        <div class="dgrade">Grade record: doctrine test caught <b>3 false prices</b> on her watch — fix in progress. The points below are read live off the chart in your own browser.</div>
+      </div>
+    </div>
+    <div class="tempwrap" id="fp-wrap"></div>
+  </section>
+
+  <section>
+    <h2>TREASURY — THE MONEY TILL</h2>
+    <div class="pots">
+      <div class="pot"><div class="pname">REPLICATE</div><div class="pstate">NOT CONFIRMED YET</div><div class="pnote">Clip and promo creation pot. The balance shows only what the Warlord confirms — amount, status, date.</div></div>
+      <div class="pot"><div class="pname">SIMLI</div><div class="pstate">NOT CONFIRMED YET</div><div class="pnote">Live face pot. The balance shows only what the Warlord confirms — amount, status, date.</div></div>
+      <div class="pot"><div class="pname">LUMA</div><div class="pstate">NOT CONFIRMED YET</div><div class="pnote">Restyle pot. The balance shows only what the Warlord confirms — amount, status, date.</div></div>
+    </div>
+    <div class="office-note">Three separate pots — nothing transfers between them · Read only</div>
+  </section>
+
+  <section>
+    <h2>BROADCAST — STREAM DAY</h2>
+    <div class="desks2">
+      <div class="desk">
+        <img src="bots/bella.webp" alt="Bella at her desk">
+        <div>
+          <div class="dname">BELLA</div>
+          <div class="djob">Open Announcer — The Stock Open Call</div>
+          <div class="dgrade">Grade record: doctrine test <b>passed clean</b> · three checks from the bell.</div>
+        </div>
+      </div>
+      <div class="desk">
+        <img src="bots/stella.webp" alt="Stella at her desk">
+        <div>
+          <div class="dname">STELLA</div>
+          <div class="djob">Close Announcer — The Stock Close Call</div>
+          <div class="dgrade">Grade record: doctrine test <b>passed clean</b> · three checks from the bell.</div>
+        </div>
+      </div>
+    </div>
+    <div class="subhead">GO-LIVE CHECKLIST</div>
+    <div class="rows">
+      <div class="orow"><span class="olabel">STREAM SEATS</span><span class="ovalue">Set — the final seats are listed below</span></div>
+      <div class="orow"><span class="olabel">OPEN ANNOUNCER</span><span class="ovalue">Checks <b>three times in a row</b> from the 9:30 AM ET bell and posts on the first check that confirms all seven tickers</span></div>
+      <div class="orow"><span class="olabel">CLOSE ANNOUNCER</span><span class="ovalue">Checks <b>three times in a row</b> from the 4:00 PM ET bell — same rule</span></div>
+      <div class="orow"><span class="olabel">KICKBOT COMMANDS</span><span class="ovalue"><b>LIVE</b> — !discord · !youtube · !tiktok · !x · !tip · !proof · !record</span></div>
+      <div class="orow"><span class="olabel">KICKBOT TIMERS</span><span class="ovalue"><b>LIVE</b> — the proof and record timer posts the house Proof Page link</span></div>
+      <div class="orow"><span class="olabel">TEXT-TO-SPEECH</span><span class="ovalue"><b>ON</b> for everyone — links are never read aloud</span></div>
+      <div class="orow"><span class="olabel">BRANDED CONTENT</span><span class="ovalue"><span class="offstate">OFF</span> — stays off until a paid ad is in rotation</span></div>
+    </div>
+    <div class="subhead">THE FINAL STREAM SEATS</div>
+    <div class="rows">
+      <div class="orow"><span class="olabel">DAY BRIEF</span><span class="ovalue">Sits in the paper game's old seat</span></div>
+      <div class="orow"><span class="olabel">PAPER GAME</span><span class="ovalue">Sits in the Kick chat seat</span></div>
+      <div class="orow"><span class="olabel">KICK CHAT</span><span class="ovalue">Off the screen</span></div>
+      <div class="orow"><span class="olabel">WAR COVE NEWS</span><span class="ovalue">Runs as its own browser source — address below</span></div>
+    </div>
+    <div class="subhead">BROWSER SOURCES</div>
+    <div class="rows">
+      <div class="orow"><span class="olabel">WAR COVE NEWS</span><span class="addr">https://longshotwolf.github.io/war-cove-newsroom/</span></div>
+      <div class="orow"><span class="olabel">PAPER GAME — STREAM VIEW</span><span class="addr">https://longshotwolf.github.io/war-cove-board/?view=stream</span></div>
+      <div class="orow"><span class="olabel">BATTLEFIELD</span><span class="addr">https://longshotwolf.github.io/war-cove-battlefield/</span></div>
+    </div>
+    <div class="office-note">Still displays — nothing on this board can be pressed or changed · Read only</div>
+  </section>
+
+  <section>
+    <h2>PRODUCTION QUEUE</h2>
+    <div class="rows">
+      <div class="orow"><span class="olabel">GROUP AD — THE CREW AT THEIR DESKS</span><span class="ovalue">Stage: <b>PARKED</b> · Lane: REPLICATE · Credit needed: REPLICATE CREDIT · State: APPROVED — fires on the Warlord's word once the credit shows</span></div>
+      <div class="orow"><span class="olabel">LIONELL DOCUMENTARY — FILMED VERSION</span><span class="ovalue">Stage: <b>PENDING FUNDING</b> · Lane: REPLICATE · Credit needed: REPLICATE CREDIT · State: SCRIPT SET — the filmed build waits on funding</span></div>
+      <div class="orow"><span class="olabel">MARGEX +425.43% AD</span><span class="ovalue">Stage: <b>BUILT — QC PASSED</b> · Lane: HOUSE LANES · Credit needed: NONE · State: ON HOLD by the Warlord's word</span></div>
+    </div>
+    <div class="office-note">Finished pieces feed the Newsroom only · Read only</div>
+  </section>
+
+  <section>
+    <h2>WAR COVE NEWS</h2>
+    <div class="embedwrap"><iframe src="https://longshotwolf.github.io/war-cove-newsroom/" loading="lazy" title="War Cove News" style="height:500px;"></iframe></div>
+    <a class="openlink" href="https://longshotwolf.github.io/war-cove-newsroom/" target="_blank" rel="noopener">OPEN THE NEWSROOM ↗</a>
+  </section>
+
+  <section>
+    <h2>THE PROOF PAGE — THE GRADED RECORD</h2>
+    <div class="desk">
+      <div>
+        <div class="dname">PRUDENCE</div>
+        <div class="djob">Proof Page Auditor — Records &amp; Quality</div>
+        <div class="dgrade">Grade record: her 30-minute QC sweep runs the whole floor — <b>first full run clean</b>. She corrects band words herself; prices, grades, quotes and times never change.</div>
+      </div>
+    </div>
+    <div class="embedwrap"><iframe src="https://longshotwolf.github.io/war-cove-proof-page/" loading="lazy" title="War Cove Proof Page" style="height:560px;"></iframe></div>
+    <a class="openlink" href="https://longshotwolf.github.io/war-cove-proof-page/" target="_blank" rel="noopener">OPEN THE PROOF PAGE ↗</a>
+  </section>
+
+  <section>
+    <h2>WAR COVE PAPER GAME</h2>
+    <div class="desk">
+      <img src="bots/felicity.webp" alt="Felicity at her desk">
+      <div>
+        <div class="dname">FELICITY</div>
+        <div class="djob">Paper Game — Runs the Game from the Kick Chat</div>
+        <div class="dgrade">Grade record: doctrine test <b>passed clean</b>.</div>
+      </div>
+    </div>
+    <div class="embedwrap"><iframe src="https://longshotwolf.github.io/war-cove-board/" loading="lazy" title="War Cove Paper Game" style="height:560px;"></iframe></div>
+    <a class="openlink" href="https://longshotwolf.github.io/war-cove-board/" target="_blank" rel="noopener">OPEN THE PAPER GAME ↗</a>
+  </section>
+
+  <footer>WAR COVE LIVE BOARD · NEW YORK TIME<br>
+  THE FLOOR IS HERE TO BE SEEN AND READ — STILL PORTRAITS ONLY, NO LIVE LINES, NO CONTROLS<br>
+  <span id="feedFace">READS LIVE OFF THE BINANCE PUBLIC FEED — THE HOUSE FALLBACK FEED, NAMED PLAIN:<br>
+  THE HOUSE TAPE SENDS NO BROWSER PERMISSION, SO THIS BOARD RUNS ON BINANCE</span></footer>
+</div>
+
+<script>
+"use strict";
+/* === CORE START === */
+const SYMBOLS = ["LTCUSDT","BTCUSDT","ETHUSDT","SOLUSDT","BCHUSDT","BNBUSDT"];
+const BIG3 = ["LTCUSDT","BTCUSDT","ETHUSDT"];
+const NAMES = {LTCUSDT:"Ł LTC", BTCUSDT:"₿ BTC", ETHUSDT:"Ξ ETH", SOLUSDT:"◎ SOL", BCHUSDT:"BCH", BNBUSDT:"BNB"};
+const BIGMOVE = {LTCUSDT:1.00, BTCUSDT:1000, ETHUSDT:30, SOLUSDT:2, BCHUSDT:30, BNBUSDT:2};
+const POLL_MS = 3000;
+
+/* ---------- data source: the Binance public feed ----------
+   The house tape sends no CORS permission header, so no browser
+   page can read it. Every read on this board runs off the Binance public
+   feed — the house fallback — and the board says so on its face. */
+const IN_DISCORD = window.location.hostname.toLowerCase().endsWith("discordsays.com");
+const BINANCE = "https://data-api.binance.vision";
+const BITUNIX = "/bx";
+const FEED_LABEL = IN_DISCORD ? "BITUNIX TAPE" : "BINANCE PUBLIC FEED";
+if(IN_DISCORD){ const ff = document.getElementById("feedFace"); if(ff) ff.innerHTML = "READS LIVE OFF THE BITUNIX TAPE — THE HOUSE TAPE ITSELF, NAMED PLAIN:<br>THE TAPE COMES INTO THIS ROOM THROUGH THE DOOR, SO THIS BOARD RUNS ON BITUNIX"; }
+
+/* Inside Discord the board drinks off the house tape itself: Discord's
+   proxy carries the call server-side, so the tape's missing browser
+   permission does not matter here. Binance's edge refuses the proxied
+   call (403, probed Nov 17, 2026); Bitunix answers it (200, real tape). */
+const IV_MS = {"1m":60000,"3m":180000,"5m":300000,"15m":900000,"30m":1800000,"1h":3600000,"2h":7200000,"4h":14400000,"6h":21600000,"12h":43200000,"1d":86400000,"1w":604800000,"1M":2592000000};
+let _bxTickers = null, _bxTickersAt = 0;
+async function bitunixTickers(){
+  if(_bxTickers && Date.now() - _bxTickersAt < 2500) return _bxTickers;
+  const r = await fetch(`${BITUNIX}/api/v1/futures/market/tickers`);
+  if(!r.ok) throw new Error("bitunix http "+r.status);
+  const j = await r.json();
+  if(!j || j.code !== 0 || !Array.isArray(j.data)) throw new Error("bitunix payload");
+  _bxTickers = j.data; _bxTickersAt = Date.now();
+  return _bxTickers;
+}
+async function bitunixKlines(symbol, interval, limit){
+  const r = await fetch(`${BITUNIX}/api/v1/futures/market/kline?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+  if(!r.ok) throw new Error("bitunix http "+r.status);
+  const j = await r.json();
+  if(!j || j.code !== 0 || !Array.isArray(j.data) || !j.data.length) throw new Error("bitunix payload");
+  const out = j.data.map(k => ({time:+k.time, open:+k.open, high:+k.high, low:+k.low, close:+k.close})).reverse();
+  /* Bitunix sends closed candles only — and closed they stay. The
+     forming candle is built by frameSeries() in the core, off the
+     closed sub-candles inside the frame plus this page's own
+     tick-tracked extremes (the house construction, Nov 19, 2026).
+     The thin one-print synthesis that stood here stamped the live
+     price as Terra's level and let a forming low rise as price
+     recovered — QC fault F-4, closed by this change. */
+  return out;
+}
+async function bitunixPrices(){
+  const rows = await bitunixTickers();
+  const out = {};
+  for(const row of rows){ if(SYMBOLS.includes(row.symbol)){ const p = parseFloat(row.lastPrice); if(isFinite(p)) out[row.symbol] = p; } }
+  return out;
+}
+
+async function binanceKlines(symbol, interval, limit){
+  if(IN_DISCORD) return bitunixKlines(symbol, interval, limit);
+  const r = await fetch(`${BINANCE}/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+  if(!r.ok) throw new Error("binance http "+r.status);
+  const j = await r.json();
+  if(!Array.isArray(j) || !j.length) throw new Error("binance payload");
+  return j.map(k => ({time:k[0], open:+k[1], high:+k[2], low:+k[3], close:+k[4]}));
+}
+async function binancePrices(){
+  if(IN_DISCORD) return bitunixPrices();
+  const syms = encodeURIComponent(JSON.stringify(SYMBOLS));
+  const r = await fetch(`${BINANCE}/api/v3/ticker/price?symbols=${syms}`);
+  if(!r.ok) throw new Error("binance http "+r.status);
+  const j = await r.json();
+  const out = {};
+  for(const row of j){ const p = parseFloat(row.price); if(isFinite(p)) out[row.symbol] = p; }
+  return out;
+}
+
+/* ---------- Heikin-Ashi ---------- */
+function heikinAshi(candles){
+  const out = [];
+  for(let i=0;i<candles.length;i++){
+    const c = candles[i];
+    const close = (c.open + c.high + c.low + c.close) / 4;
+    const open = i === 0 ? (c.open + c.close) / 2 : (out[i-1].open + out[i-1].close) / 2;
+    out.push({ time:c.time, open, close,
+               high: Math.max(c.high, open, close),
+               low:  Math.min(c.low,  open, close) });
+  }
+  return out;
+}
+
+/* ---------- FORMING CANDLE — the house construction (Nov 19, 2026) ----------
+   Every frame's forming candle is built the way the house temp
+   watchers build it (telegram-bot/temp_watcher.py — the reference
+   implementation): the frame's CLOSED candles, plus a forming
+   candle composed from the closed sub-candles inside the frame's
+   current boundary, closed out by the live price, with the
+   board's own tick-tracked running extremes merged in before the
+   Heikin-Ashi is taken. A level read off this series is the
+   forming HA candle's own extreme: it cannot chase the live
+   price, cannot rise inside its own candle (a bottom), and
+   cannot freeze on a stale snapshot extreme.
+   Exchange note: Binance's kline answer already carries the
+   forming candle (real extremes, refreshed at fetch time); the
+   tick merge covers the seconds between fetches. Bitunix sends
+   closed candles only, so on that lane the sub-candle build IS
+   the forming candle — the thin one-print synthesis it replaces
+   (QC fault F-4) stamped the live price as the level and let a
+   "forming low" rise as price recovered. */
+function frameBoundary(iv, now){
+  now = (now == null ? Date.now() : now);
+  if(iv === "1M"){ const d = new Date(now); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1); }
+  if(iv === "1w"){ const day = 86400000; const ds = Math.floor(now / day) * day; return ds - ((new Date(ds).getUTCDay() + 6) % 7) * day; }
+  const secs = {"1m":60, "3m":180, "15m":900, "1h":3600, "4h":14400, "6h":21600, "1d":86400}[iv];
+  return Math.floor(now / (secs * 1000)) * (secs * 1000);
+}
+const TICK_IVS = ["1m", "3m", "1h", "4h", "6h", "1d", "1w", "1M"];
+const tickBook = {}; // "SYM|iv" -> {boundary, high, low} — this page's own live ticks
+function notePrices(prices){
+  const now = Date.now();
+  for(const s in prices){
+    const live = prices[s];
+    if(live == null || !isFinite(live)) continue;
+    for(let i = 0; i < TICK_IVS.length; i++){
+      const iv = TICK_IVS[i], b = frameBoundary(iv, now), k = s + "|" + iv;
+      const t = tickBook[k];
+      if(!t || t.boundary !== b) tickBook[k] = { boundary: b, high: live, low: live };
+      else { if(live > t.high) t.high = live; if(live < t.low) t.low = live; }
+    }
+  }
+}
+const SUB_FOR = {"3m":"1m", "1h":"3m", "4h":"3m", "6h":"3m", "1d":"15m", "1w":"4h", "1M":"4h"};
+const subCache = {}; // "SYM|iv" -> closed sub-candles (15m/4h fetched on the house 60s cadence; 3m/1m stashed from the board's own pulls)
+async function subFetchKlines(){
+  const jobs = [];
+  for(const s of SYMBOLS){
+    jobs.push(binanceKlines(s, "15m", 100).then(k => { subCache[s + "|15m"] = k; }).catch(() => {}));
+    jobs.push(binanceKlines(s, "4h", 200).then(k => { subCache[s + "|4h"] = k; }).catch(() => {}));
+  }
+  await Promise.all(jobs);
+}
+function frameSeries(symbol, iv, candles, live){
+  if(!candles || candles.length < 2 || live == null || !isFinite(live)) return candles;
+  const b = frameBoundary(iv);
+  const last = candles[candles.length - 1];
+  let closed, forming;
+  if(last.time >= b){
+    // the exchange series already carries the forming candle
+    closed = candles.slice(0, -1);
+    forming = { time: b, open: last.open, high: last.high, low: last.low, close: live };
+  } else {
+    // closed candles only — compose the forming candle from the
+    // closed sub-candles inside this frame's boundary
+    closed = candles.slice();
+    const subs = SUB_FOR[iv] ? (subCache[symbol + "|" + SUB_FOR[iv]] || []) : [];
+    let open = null, high = null, low = null;
+    for(let i = 0; i < subs.length; i++){
+      const c = subs[i];
+      if(c.time < b) continue;
+      if(open === null) open = c.open;
+      high = high === null ? c.high : Math.max(high, c.high);
+      low = low === null ? c.low : Math.min(low, c.low);
+    }
+    if(open === null){ open = last.close; high = last.close; low = last.close; }
+    forming = { time: b, open: open, high: high, low: low, close: live };
+  }
+  const tk = tickBook[symbol + "|" + iv];
+  if(tk && tk.boundary === b){
+    if(tk.high > forming.high) forming.high = tk.high;
+    if(tk.low < forming.low) forming.low = tk.low;
+  }
+  if(live > forming.high) forming.high = live;
+  if(live < forming.low) forming.low = live;
+  if(forming.open > forming.high) forming.high = forming.open;
+  if(forming.open < forming.low) forming.low = forming.open;
+  return closed.concat([forming]);
+}
+function tempCellIv(cell){
+  const f = FRAMES.find(f => f.key === cell.frame);
+  return f ? f.iv : "1m";
+}
+
+/* ---------- 3M SURVEY — the three minute ----------
+   PUSHING = fresh ground on the 3M series (live price beyond the range of
+   the previous 3 closed HA candles, in the move's direction).
+   SLOWING only when BOTH latest closed HA candles are littler than BOTH
+   preceding ones AND no fresh ground was made. Fresh ground forces PUSHING.
+   BIG MOVE = fresh ground AND travel from the swing extreme of the last 40
+   closed candles past the coin's line (LTC $1.00 · BTC $1,000 · ETH $30 ·
+   SOL $2 · BCH $30 · BNB $2). */
+function surveyRead(symbol, raw, live){
+  const ha = heikinAshi(raw);
+  const closed = ha.slice(0, -1);
+  const forming = ha[ha.length - 1];
+  const dirUp = live >= forming.open;
+  const prev3 = closed.slice(-3);
+  const hiRef = Math.max.apply(null, prev3.map(c => c.high));
+  const loRef = Math.min.apply(null, prev3.map(c => c.low));
+  const freshUp = live > hiRef, freshDown = live < loRef;
+  const n = closed.length;
+  const size = i => closed[i].high - closed[i].low;
+  const littler = Math.max(size(n-1), size(n-2)) < Math.min(size(n-3), size(n-4));
+  let state, army = dirUp ? "GREEN" : "RED", bigDir = null;
+  if(freshUp || freshDown){
+    state = "PUSHING";
+    army = freshUp ? "GREEN" : "RED";
+    const win = closed.slice(-40);
+    const travel = freshUp ? live - Math.min.apply(null, win.map(c => c.low))
+                           : Math.max.apply(null, win.map(c => c.high)) - live;
+    if(travel >= BIGMOVE[symbol]) bigDir = freshUp ? "UP" : "DOWN";
+  } else if(littler){
+    state = "SLOWING";
+  } else {
+    state = "PUSHING";
+  }
+  return { state, army, bigDir };
+}
+
+/* SPREAD ≠ PUSH — the Warlord's law (Nov 14, confirmed "Correct"): the
+   spread and the push are two separate facts, never blended into one
+   color. Sierra's word carries the three minute's OWN army, always; the
+   spread keeps its own color and band word on its own row. (The old
+   "agreement rule" override that recolored her word with the spread's
+   army past cycle size was removed Nov 18, 2026: while the 6H spread
+   sat at −30¢ or beyond it made her room print RED ARMY PUSHING on a
+   live GREEN three minute. Her read is the tape's read.) */
+const CYCLE_LINE = { LTCUSDT: 0.30, BTCUSDT: 300, ETHUSDT: 9, SOLUSDT: 2, BCHUSDT: 30, BNBUSDT: 2 };
+function composeWord(symbol, read, spread){
+  let army = read.army;
+  let word = army + " ARMY " + read.state;
+  if(read.bigDir) word += army === "GREEN" ? " — BIG MOVE TO THE UPSIDE" : " — BIG MOVE TO THE DOWNSIDE";
+  return { army, word };
+}
+
+/* ---------- 6H SPREAD ----------
+   Spread = live price − the forming 6H Heikin-Ashi candle's close value.
+   LTC scale (the Nov 15 ruling): under 30¢ a weak move · 30¢ and beyond
+   A CYCLE · $1.00+ the big move. */
+function bandWord(symbol, spread){
+  const a = Math.abs(spread);
+  switch(symbol){
+    case "LTCUSDT": return a < 0.30 ? "a weak move" : (a < 1.00 ? "A CYCLE" : "THE BIG MOVE");
+    case "BTCUSDT": return a < 300 ? "quiet" : a < 500 ? "A NICE CYCLE" : a < 800 ? "A MOVE" : a < 1000 ? "A BETTER MOVE" : "BIG BIG MOVE";
+    case "ETHUSDT": return a < 9 ? "quiet" : a < 15 ? "A CYCLE" : a < 30 ? "A MOVE" : "A BIG MOVE";
+    case "SOLUSDT": return a >= 2 ? "a nice move" : "quiet";
+    case "BCHUSDT": return a >= 30 ? "a nice move" : "quiet";
+    case "BNBUSDT": return a >= 2 ? "a good move" : "quiet";
+  }
+  return "quiet";
+}
+
+/* ---------- formatting ---------- */
+function fmtPrice(v){
+  return "$" + v.toLocaleString("en-US",{minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function fmtSpread(symbol, spread){
+  const sign = spread >= 0 ? "+" : "−";
+  if(symbol === "LTCUSDT") return sign + Math.round(Math.abs(spread) * 100) + "¢";
+  return sign + "$" + Math.abs(spread).toLocaleString("en-US",{minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+/* ---------- TEMP machinery — bottoms / tops / one minute ----------
+   Reader only: this machinery reads and displays, nothing else. Every
+   number is computed here in the visitor's own browser off the Binance
+   public feed — no house server, no house feed files.
+   Each frame's level rides the FORMING Heikin-Ashi candle: bottom level =
+   its low extreme, top level = its high extreme. A fresh extension of the
+   extreme is a new hit and fires once per level; a standing level never
+   re-fires; a candle roll starts clean.
+   LIGHT LAW: a light means price is on the level NOW, plus a full 60-second
+   flashing hold after a hit or a bounce off the point. Once price is off
+   the point and the 60 seconds run out, every glow goes out. The hit record
+   (price · NYC time · count) stays on screen as plain unlit text.
+   PRIME LAW (Warlord order Nov 17, 2026): a page load, a feed (re)connect,
+   or a candle roll PRIMES each cell silently — the standing level is adopted
+   with lights OFF and any already-fired hit for this candle restores as
+   plain text only. Nothing fires and nothing flashes at prime; only a
+   genuinely fresh extension AFTER the prime may fire. A cell is not ARMED
+   to light until price has been seen off its level since the prime, or a
+   fresh extension fires it. */
+const FRAMES = [
+  {key:"MONTH", iv:"1M"}, {key:"WEEK", iv:"1w"}, {key:"DAY", iv:"1d"},
+  {key:"4H", iv:"4h"}, {key:"6H", iv:"6h"}
+];
+const HIT_BAND = 0.0015;    // hit while within 0.15% of the level
+const PIERCE_BAND = 0.0005; // more than 0.05% through it = through
+const TEMP_FLASH_MS = 60000;
+
+function tempHitState(side, live, level){
+  if(side === "bottom"){
+    if(live < level * (1 - PIERCE_BAND)) return {state:"through"};
+    if(live <= level * (1 + HIT_BAND)) return {state:"hit"};
+    return {state:"clear", dist:(live - level) / level * 100};
+  }
+  if(live > level * (1 + PIERCE_BAND)) return {state:"through"};
+  if(live >= level * (1 - HIT_BAND)) return {state:"hit"};
+  return {state:"clear", dist:(level - live) / level * 100};
+}
+/* Fired hits persist per candle so a reload / reconnect restores the record
+   as plain text instead of re-firing it. Keyed side|symbol|frame + the
+   candle's open time, so a candle roll naturally starts clean. */
+function tempStoreKey(cell){ return "wc-temp-v1|" + cell.side + "|" + cell.symbol + "|" + cell.frame; }
+function tempPersist(cell){
+  if(!cell.record) return;
+  try{
+    localStorage.setItem(tempStoreKey(cell), JSON.stringify({
+      ct: cell.candleTime, price: cell.record.price,
+      time: cell.record.time.toISOString(), count: cell.record.count
+    }));
+  }catch(e){ /* storage unavailable: in-page state still governs this session */ }
+}
+function tempRestore(cell, candleTime){
+  try{
+    const raw = localStorage.getItem(tempStoreKey(cell));
+    if(!raw) return;
+    const s = JSON.parse(raw);
+    if(s && s.ct === candleTime && isFinite(s.price)){
+      cell.record = { price: s.price, time: new Date(s.time), count: s.count || 1 };
+    }
+  }catch(e){ /* no readable record: the cell primes clean */ }
+}
+function tempLit(cell, now){
+  return !!cell.armed && (cell.state === "hit" || now < cell.flashUntil);
+}
+function tempFireHit(cell, level){
+  cell.record = {
+    price: level,
+    time: new Date(),
+    count: cell.record ? cell.record.count + 1 : 1
+  };
+  cell.flashUntil = Date.now() + TEMP_FLASH_MS;
+  cell.firedLive = true;
+  cell.armed = true;
+  tempPersist(cell);
+}
+function tempEvaluate(cell, candles, live){
+  const ha = heikinAshi(frameSeries(cell.symbol, tempCellIv(cell), candles, live));
+  const forming = ha[ha.length - 1];
+  const candleTime = candles[candles.length - 1].time;
+  if(cell.candleTime !== candleTime){ // candle roll starts clean
+    cell.candleTime = candleTime;
+    cell.level = null; cell.record = null;
+    cell.state = null; cell.flashUntil = 0;
+    cell.armed = false; cell.firedLive = false;
+  }
+  const extreme = cell.side === "bottom" ? forming.low : forming.high;
+  if(cell.level === null){
+    /* PRIME — page load, feed (re)connect, or candle roll: adopt the standing
+       level SILENTLY. A hit already fired on this candle restores as plain
+       text, lights OFF. Nothing fires at prime, ever. */
+    cell.level = extreme;
+    tempRestore(cell, candleTime);
+  } else if(extreme !== cell.level){
+    cell.level = extreme; // fresh extension of the extreme = a new hit
+    tempFireHit(cell, extreme);
+  }
+  const now = Date.now();
+  const res = tempHitState(cell.side, live, cell.level);
+  if(res.state !== "hit") cell.armed = true; // price seen off the point: the cell is live
+  if(cell.firedLive && cell.state === "hit" && res.state !== "hit" && cell.flashUntil < now + TEMP_FLASH_MS)
+    cell.flashUntil = now + TEMP_FLASH_MS; // bounce off the point: hold the flash
+  cell.state = res.state;
+  cell.dist = res.dist;
+  cell.lit = tempLit(cell, now);
+}
+
+/* ---------- FOUR POINTS ----------
+   The four points of the forming Heikin-Ashi candle, read in the direction
+   price is travelling through it:
+   P1 = the body end away from the wick (the end price meets first) ·
+   P2 = THE MIDDLE of the candle — over it green has it, under it red is
+   winning · P3 = where the candle meets the wick · P4 = the wick tip. */
+function fourPoints(ha, live){
+  const f = ha[ha.length - 1];
+  const mid = (f.high + f.low) / 2;
+  let p1, p3, p4, holder;
+  if(live >= mid){
+    holder = "GREEN";
+    p1 = Math.min(f.open, f.close); // body end away from the upper wick
+    p3 = Math.max(f.open, f.close); // body meets the upper wick
+    p4 = f.high;                    // upper wick tip
+  } else {
+    holder = "RED";
+    p1 = Math.max(f.open, f.close); // body end away from the lower wick
+    p3 = Math.min(f.open, f.close); // body meets the lower wick
+    p4 = f.low;                     // lower wick tip
+  }
+  const points = { P1: p1, P2: mid, P3: p3, P4: p4 };
+  let on = null;
+  for(const k of ["P1","P2","P3","P4"]){
+    if(Math.abs(live - points[k]) <= points[k] * 0.0005){ on = k; break; }
+  }
+  return { points, holder, on };
+}
+/* === CORE END === */
+
+/* ---------- NYC clock ---------- */
+const nycTime = new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York", hour:"numeric", minute:"2-digit", second:"2-digit", hour12:true});
+const nycClock = new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York", weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit", second:"2-digit", hour12:true});
+function tickClock(){
+  document.getElementById("clock").textContent = nycClock.format(new Date()) + " · NYC";
+}
+setInterval(tickClock, 1000); tickClock();
+
+/* ---------- build MARKET cells ---------- */
+const marketCells = {};
+(function(){
+  const grid = document.getElementById("market-grid");
+  for(const s of SYMBOLS){
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    cell.innerHTML = '<div class="coin"></div><div class="price">—</div><div class="tick">—</div>';
+    cell.querySelector(".coin").textContent = NAMES[s];
+    grid.appendChild(cell);
+    marketCells[s] = { price: cell.querySelector(".price"), tick: cell.querySelector(".tick"), prev: null };
+  }
+})();
+function renderMarket(symbol, live){
+  const M = marketCells[symbol];
+  M.price.textContent = fmtPrice(live);
+  if(M.prev != null && live !== M.prev){
+    M.tick.textContent = live > M.prev ? "▲" : "▼";
+    M.tick.className = "tick " + (live > M.prev ? "up" : "dn");
+  }
+  M.prev = live;
+}
+
+/* ---------- build SURVEY cells ---------- */
+(function(){
+  const grid = document.getElementById("survey-grid");
+  const FULL = {LTCUSDT:"Ł LITECOIN", BTCUSDT:"₿ BITCOIN", ETHUSDT:"Ξ ETHEREUM", SOLUSDT:"◎ SOLANA", BCHUSDT:"BCH BITCOIN CASH", BNBUSDT:"BNB"};
+  for(const s of SYMBOLS){
+    const cell = document.createElement("div");
+    cell.className = "cell"; cell.id = "survey-" + s; cell.dataset.army = "";
+    cell.innerHTML = '<div class="coin"></div><div class="price">—</div><div class="word">READING…</div>';
+    cell.querySelector(".coin").textContent = FULL[s];
+    grid.appendChild(cell);
+  }
+})();
+const surveyState = {}; // symbol -> {word, timer}
+function renderSurvey(symbol, read, live){
+  const cell = document.getElementById("survey-" + symbol);
+  cell.querySelector(".price").textContent = fmtPrice(live);
+  cell.querySelector(".word").textContent = read.word;
+  cell.dataset.army = read.army;
+  const prev = surveyState[symbol];
+  if(!prev || prev.word !== read.word){
+    cell.classList.remove("flash-green","flash-red");
+    void cell.offsetWidth; // restart the flash
+    cell.classList.add(read.army === "GREEN" ? "flash-green" : "flash-red");
+    if(prev && prev.timer) clearTimeout(prev.timer);
+    const timer = setTimeout(() => cell.classList.remove("flash-green","flash-red"), 60000);
+    surveyState[symbol] = { word: read.word, timer };
+  }
+}
+
+/* ---------- build SPREAD rows ---------- */
+const spreadRows = {};
+(function(){
+  const wrap = document.getElementById("spread-rows");
+  for(const s of SYMBOLS){
+    const row = document.createElement("div");
+    row.className = "row"; row.id = "spread-" + s;
+    row.innerHTML = '<span class="rcoin"></span><span class="rprice">—</span>' +
+                    '<span class="rspread">—</span><span class="rband">—</span>' +
+                    '<span class="rpush"></span>';
+    row.querySelector(".rcoin").textContent = NAMES[s];
+    wrap.appendChild(row);
+    spreadRows[s] = { row,
+      price: row.querySelector(".rprice"),
+      spread: row.querySelector(".rspread"),
+      band: row.querySelector(".rband"),
+      push: row.querySelector(".rpush") };
+  }
+})();
+function renderSpread(symbol, live, spread, survey){
+  const R = spreadRows[symbol];
+  R.price.textContent = fmtPrice(live);
+  R.spread.textContent = fmtSpread(symbol, spread);
+  R.spread.className = "rspread " + (spread >= 0 ? "pos" : "neg");
+  R.band.textContent = bandWord(symbol, spread);
+  if(survey){
+    R.push.innerHTML = '<span class="plabel">3M PUSH&nbsp;&nbsp;</span>' +
+      survey.word.replace(/^(GREEN|RED) ARMY /, "");
+    R.push.className = "rpush " + survey.army;
+  }
+}
+
+/* ---------- main poll: market · spread · survey ---------- */
+const statusEl = document.getElementById("status");
+async function poll(){
+  try{
+    const prices = await binancePrices();
+    notePrices(prices);
+    const jobs = [];
+    for(const s of SYMBOLS) jobs.push(binanceKlines(s, "3m", 120).then(k => ({kind:"3m", s, k})));
+    for(const s of SYMBOLS) jobs.push(binanceKlines(s, "6h", 60).then(k => ({kind:"6h", s, k})));
+    const res = await Promise.all(jobs);
+    const k3 = {}, k6 = {};
+    for(const r of res){ if(r.kind === "3m"){ k3[r.s] = r.k; subCache[r.s + "|3m"] = r.k; } else k6[r.s] = r.k; }
+    const spreads = {};
+    for(const s of SYMBOLS){
+      if(prices[s] != null && k6[s]){
+        const ha6 = heikinAshi(frameSeries(s, "6h", k6[s], prices[s]));
+        spreads[s] = prices[s] - ha6[ha6.length - 1].close;
+      }
+    }
+    const reads = {};
+    for(const s of SYMBOLS){
+      if(prices[s] != null && k3[s]){
+        reads[s] = composeWord(s, surveyRead(s, frameSeries(s, "3m", k3[s], prices[s])), spreads[s]);
+        renderSurvey(s, reads[s], prices[s]);
+      }
+    }
+    for(const s of SYMBOLS){
+      if(prices[s] != null) renderMarket(s, prices[s]);
+      if(spreads[s] != null) renderSpread(s, prices[s], spreads[s], reads[s] || null);
+    }
+    statusEl.textContent = "● LIVE — " + FEED_LABEL + " · UPDATED " + nycTime.format(new Date()) + " NYC";
+  }catch(e){
+    statusEl.textContent = "RECONNECTING TO THE FEED…";
+  }
+}
+poll();
+setInterval(poll, POLL_MS);
+
+/* ---------- TEMP grids — bottoms / tops (five frames) ---------- */
+const tempCells = {}; // "bottom|LTCUSDT|MONTH" -> cell record
+(function buildTempGrids(){
+  for(const side of ["bottom","top"]){
+    const grid = document.getElementById(side === "bottom" ? "bot-grid" : "top-grid");
+    const corner = document.createElement("div");
+    corner.className = "thead"; corner.textContent = "COIN";
+    grid.appendChild(corner);
+    for(const f of FRAMES){
+      const h = document.createElement("div");
+      h.className = "thead"; h.textContent = f.key;
+      grid.appendChild(h);
+    }
+    for(const s of SYMBOLS){
+      const c = document.createElement("div");
+      c.className = "tcoin"; c.textContent = NAMES[s];
+      grid.appendChild(c);
+      for(const f of FRAMES){
+        const el = document.createElement("div");
+        el.className = "tcell";
+        el.innerHTML = '<div class="tlvl">—</div><div class="tstate">READING…</div><div class="trec"></div>';
+        grid.appendChild(el);
+        tempCells[side + "|" + s + "|" + f.key] = {
+          side, symbol:s, frame:f.key, el,
+          lvlEl: el.querySelector(".tlvl"),
+          stateEl: el.querySelector(".tstate"),
+          recEl: el.querySelector(".trec"),
+          candleTime:null, level:null, record:null,
+          state:null, flashUntil:0, armed:false, firedLive:false
+        };
+      }
+    }
+  }
+})();
+
+/* ---------- ONE MINUTE grid — bottom + top per coin ---------- */
+const oneCells = {}; // "one|bottom|LTCUSDT" -> cell record
+(function buildOneGrid(){
+  const grid = document.getElementById("one-grid");
+  const corner = document.createElement("div");
+  corner.className = "thead"; corner.textContent = "COIN";
+  grid.appendChild(corner);
+  for(const label of ["BOTTOM","TOP"]){
+    const h = document.createElement("div");
+    h.className = "thead"; h.textContent = label;
+    grid.appendChild(h);
+  }
+  for(const s of SYMBOLS){
+    const c = document.createElement("div");
+    c.className = "tcoin"; c.textContent = NAMES[s];
+    grid.appendChild(c);
+    for(const side of ["bottom","top"]){
+      const el = document.createElement("div");
+      el.className = "tcell";
+      el.innerHTML = '<div class="tlvl">—</div><div class="tstate">READING…</div><div class="trec"></div>';
+      grid.appendChild(el);
+      oneCells["one|" + side + "|" + s] = {
+        side, symbol:s, frame:"1M", el,
+        lvlEl: el.querySelector(".tlvl"),
+        stateEl: el.querySelector(".tstate"),
+        recEl: el.querySelector(".trec"),
+        candleTime:null, level:null, record:null,
+        state:null, flashUntil:0, armed:false, firedLive:false
+      };
+    }
+  }
+})();
+
+function tempRenderCell(cell){
+  cell.lvlEl.textContent = fmtPrice(cell.level);
+  if(cell.state === "through"){
+    cell.stateEl.textContent = "THROUGH — NOT HOLDING";
+    cell.el.classList.add("through");
+  } else if(cell.state === "hit"){
+    cell.stateEl.textContent = cell.side === "bottom" ? "BOTTOM HIT — PRICE ON IT" : "TOP HIT — PRICE ON IT";
+    cell.el.classList.remove("through");
+  } else {
+    cell.stateEl.textContent = cell.dist != null ? cell.dist.toFixed(2) + "% AWAY" : "—";
+    cell.el.classList.remove("through");
+  }
+  cell.recEl.textContent = cell.record
+    ? "✓ Hit " + fmtPrice(cell.record.price) + " · " + nycTime.format(cell.record.time) + " NYC · ×" + cell.record.count
+    : "";
+  cell.el.classList.toggle("lit-b", cell.side === "bottom" && !!cell.lit);
+  cell.el.classList.toggle("lit-t", cell.side === "top" && !!cell.lit);
+}
+function tempRenderSideLights(){
+  for(const side of ["bottom","top"]){
+    let litCell = null;
+    for(const k in tempCells){
+      const c = tempCells[k];
+      if(c.side !== side) continue;
+      c.lit = tempLit(c, Date.now());
+      c.el.classList.toggle("lit-b", side === "bottom" && c.lit);
+      c.el.classList.toggle("lit-t", side === "top" && c.lit);
+      if(c.lit && (!litCell || (c.record && litCell.record && c.record.time > litCell.record.time))) litCell = c;
+    }
+    const sec = document.getElementById(side === "bottom" ? "temp-bottoms" : "temp-tops");
+    const bar = document.getElementById(side === "bottom" ? "bot-bar" : "top-bar");
+    sec.classList.toggle("glow-b", side === "bottom" && !!litCell);
+    sec.classList.toggle("glow-t", side === "top" && !!litCell);
+    bar.classList.toggle("lit-b", side === "bottom" && !!litCell);
+    bar.classList.toggle("lit-t", side === "top" && !!litCell);
+    bar.textContent = litCell
+      ? "💡 " + (side === "bottom" ? "BOTTOM" : "TOP") + " HIT LIT — " + NAMES[litCell.symbol] + " " + litCell.frame
+      : (side === "bottom" ? "NO BOTTOM HIT LIT" : "NO TOP HIT LIT");
+  }
+}
+function oneRenderLights(){
+  let litCell = null;
+  for(const k in oneCells){
+    const c = oneCells[k];
+    c.lit = tempLit(c, Date.now());
+    c.el.classList.toggle("lit-b", c.side === "bottom" && c.lit);
+    c.el.classList.toggle("lit-t", c.side === "top" && c.lit);
+    if(c.lit && (!litCell || (c.record && litCell.record && c.record.time > litCell.record.time))) litCell = c;
+  }
+  const sec = document.getElementById("temp-one");
+  const bar = document.getElementById("one-bar");
+  sec.classList.toggle("glow-b", !!litCell && litCell.side === "bottom");
+  sec.classList.toggle("glow-t", !!litCell && litCell.side === "top");
+  bar.classList.toggle("lit-b", !!litCell && litCell.side === "bottom");
+  bar.classList.toggle("lit-t", !!litCell && litCell.side === "top");
+  bar.textContent = litCell
+    ? "💡 1M HIT LIT — " + NAMES[litCell.symbol] + " " + (litCell.side === "bottom" ? "BOTTOM" : "TOP")
+    : "NO 1M HIT LIT";
+}
+
+/* ---------- FOUR POINTS panel — the big 3 × MONTH · WEEK · DAY · 6H ---------- */
+const FP_FRAMES = FRAMES.filter(f => f.key !== "4H");
+const fpCells = {}; // "LTCUSDT|MONTH" -> cell record
+(function buildFpGrids(){
+  const wrap = document.getElementById("fp-wrap");
+  for(const s of BIG3){
+    const grid = document.createElement("div");
+    grid.className = "tgrid fpgrid";
+    const corner = document.createElement("div");
+    corner.className = "thead"; corner.textContent = "FRAME";
+    grid.appendChild(corner);
+    for(const f of FP_FRAMES){
+      const h = document.createElement("div");
+      h.className = "thead"; h.textContent = f.key;
+      grid.appendChild(h);
+    }
+    const c = document.createElement("div");
+    c.className = "tcoin"; c.textContent = NAMES[s];
+    grid.appendChild(c);
+    for(const f of FP_FRAMES){
+      const el = document.createElement("div");
+      el.className = "tcell";
+      el.innerHTML =
+        '<div class="fpline"><span class="fpk">P1</span><span class="fpv" data-p="P1">—</span></div>' +
+        '<div class="fpline mid"><span class="fpk">P2 · MIDDLE</span><span class="fpv" data-p="P2">—</span></div>' +
+        '<div class="fpline"><span class="fpk">P3</span><span class="fpv" data-p="P3">—</span></div>' +
+        '<div class="fpline"><span class="fpk">P4</span><span class="fpv" data-p="P4">—</span></div>' +
+        '<div class="fpstate">READING…</div>';
+      grid.appendChild(el);
+      fpCells[s + "|" + f.key] = {
+        symbol:s, frame:f.key, el,
+        pv: { P1: el.querySelector('[data-p="P1"]'), P2: el.querySelector('[data-p="P2"]'),
+              P3: el.querySelector('[data-p="P3"]'), P4: el.querySelector('[data-p="P4"]') },
+        lines: { P1: el.querySelector('[data-p="P1"]').parentElement, P2: el.querySelector('[data-p="P2"]').parentElement,
+                 P3: el.querySelector('[data-p="P3"]').parentElement, P4: el.querySelector('[data-p="P4"]').parentElement },
+        stateEl: el.querySelector(".fpstate")
+      };
+    }
+    wrap.appendChild(grid);
+  }
+})();
+function fpRender(prices){
+  for(const k in fpCells){
+    const cell = fpCells[k];
+    const iv = FP_FRAMES.find(f => f.key === cell.frame).iv;
+    const candles = tempKlineCache[cell.symbol + "|" + iv];
+    const live = prices[cell.symbol];
+    if(!candles || candles.length < 2 || live == null) continue;
+    const fp = fourPoints(heikinAshi(frameSeries(cell.symbol, iv, candles, live)), live);
+    for(const p of ["P1","P2","P3","P4"]){
+      cell.pv[p].textContent = fmtPrice(fp.points[p]);
+      cell.lines[p].classList.toggle("onp", fp.on === p);
+    }
+    cell.stateEl.textContent = fp.on
+      ? "PRICE ON " + fp.on + (fp.on === "P2" ? " — THE MIDDLE" : "")
+      : (fp.holder === "GREEN" ? "GREEN HAS IT — OVER THE MIDDLE" : "RED WINNING — UNDER THE MIDDLE");
+    cell.stateEl.className = "fpstate " + fp.holder;
+  }
+}
+
+/* ---------- TIMEFRAME SURVEYS — 1H · 4H · 6H · DAY · WEEK · MONTH ----------
+   Hera · Cora · Juno · Dia · Sela · Mona. Each reads her own timeframe
+   exactly the way Sierra reads the three minute: price vs the forming
+   Heikin-Ashi candle on her own series, the push / slowing read, and the
+   agreement rule with the 6H spread — every number computed live in the
+   visitor's own browser off the same Binance public feed. */
+const TF_OFFICES = [
+  {key:"1H", iv:"1h"}, {key:"4H", iv:"4h"}, {key:"6H", iv:"6h"},
+  {key:"DAY", iv:"1d"}, {key:"WEEK", iv:"1w"}, {key:"MONTH", iv:"1M"}
+];
+const TF_FULL = {LTCUSDT:"Ł LITECOIN", BTCUSDT:"₿ BITCOIN", ETHUSDT:"Ξ ETHEREUM", SOLUSDT:"◎ SOLANA", BCHUSDT:"BCH BITCOIN CASH", BNBUSDT:"BNB"};
+(function buildTfGrids(){
+  for(const o of TF_OFFICES){
+    const grid = document.getElementById("tf-grid-" + o.key);
+    if(!grid) continue;
+    for(const s of SYMBOLS){
+      const cell = document.createElement("div");
+      cell.className = "cell"; cell.id = "tf-" + o.key + "-" + s; cell.dataset.army = "";
+      cell.innerHTML = '<div class="coin"></div><div class="price">—</div><div class="word">READING…</div>';
+      cell.querySelector(".coin").textContent = TF_FULL[s];
+      grid.appendChild(cell);
+    }
+  }
+})();
+const tfState = {}; // cell id -> {word, timer}
+function renderTf(key, symbol, read, live){
+  const cell = document.getElementById("tf-" + key + "-" + symbol);
+  if(!cell) return;
+  cell.querySelector(".price").textContent = fmtPrice(live);
+  cell.querySelector(".word").textContent = read.word;
+  cell.dataset.army = read.army;
+  const prev = tfState[cell.id];
+  if(!prev || prev.word !== read.word){
+    cell.classList.remove("flash-green","flash-red");
+    void cell.offsetWidth; // restart the flash
+    cell.classList.add(read.army === "GREEN" ? "flash-green" : "flash-red");
+    if(prev && prev.timer) clearTimeout(prev.timer);
+    const timer = setTimeout(() => cell.classList.remove("flash-green","flash-red"), 60000);
+    tfState[cell.id] = { word: read.word, timer };
+  }
+}
+const tfKlineCache = {}; // "LTCUSDT|1h" -> candles
+async function tfFetchKlines(){
+  const jobs = [];
+  for(const s of SYMBOLS) for(const o of TF_OFFICES){
+    jobs.push(binanceKlines(s, o.iv, 120)
+      .then(k => { tfKlineCache[s + "|" + o.iv] = k; })
+      .catch(() => {}));
+  }
+  await Promise.all(jobs);
+}
+async function tfTick(){
+  try{
+    const prices = await binancePrices();
+    notePrices(prices);
+    const spreads = {};
+    for(const s of SYMBOLS){
+      const k6 = tfKlineCache[s + "|6h"];
+      if(prices[s] != null && k6 && k6.length > 1){
+        const ha6 = heikinAshi(frameSeries(s, "6h", k6, prices[s]));
+        spreads[s] = prices[s] - ha6[ha6.length - 1].close;
+      }
+    }
+    for(const o of TF_OFFICES){
+      for(const s of SYMBOLS){
+        const candles = tfKlineCache[s + "|" + o.iv];
+        if(candles && candles.length > 5 && prices[s] != null){
+          const read = composeWord(s, surveyRead(s, frameSeries(s, o.iv, candles, prices[s])), spreads[s] != null ? spreads[s] : null);
+          renderTf(o.key, s, read, prices[s]);
+        }
+      }
+    }
+  }catch(e){ /* next tick retries */ }
+}
+tfFetchKlines().then(tfTick);
+setInterval(tfFetchKlines, 10000);
+setInterval(tfTick, 5000);
+
+/* ---------- temp / one-minute / four-points data loops ---------- */
+const tempKlineCache = {}; // "LTCUSDT|1M" -> candles
+async function tempFetchKlines(){
+  const jobs = [];
+  for(const s of SYMBOLS) for(const f of FRAMES){
+    jobs.push(binanceKlines(s, f.iv, 100)
+      .then(k => { tempKlineCache[s + "|" + f.iv] = k; })
+      .catch(() => {}));
+  }
+  await Promise.all(jobs);
+}
+const oneKlineCache = {}; // "LTCUSDT" -> 1m candles
+async function oneFetchKlines(){
+  const jobs = [];
+  for(const s of SYMBOLS){
+    jobs.push(binanceKlines(s, "1m", 100)
+      .then(k => { oneKlineCache[s] = k; subCache[s + "|1m"] = k; })
+      .catch(() => {}));
+  }
+  await Promise.all(jobs);
+}
+async function tempTick(){
+  try{
+    const prices = await binancePrices();
+    notePrices(prices);
+    for(const k in tempCells){
+      const cell = tempCells[k];
+      const iv = FRAMES.find(f => f.key === cell.frame).iv;
+      const candles = tempKlineCache[cell.symbol + "|" + iv];
+      if(candles && candles.length > 1 && prices[cell.symbol] != null){
+        tempEvaluate(cell, candles, prices[cell.symbol]);
+        tempRenderCell(cell);
+      }
+    }
+    for(const k in oneCells){
+      const cell = oneCells[k];
+      const candles = oneKlineCache[cell.symbol];
+      if(candles && candles.length > 1 && prices[cell.symbol] != null){
+        tempEvaluate(cell, candles, prices[cell.symbol]);
+        tempRenderCell(cell);
+      }
+    }
+    fpRender(prices);
+    tempRenderSideLights();
+    oneRenderLights();
+  }catch(e){ /* next tick retries; the board's main status line reports feed trouble */ }
+}
+tempFetchKlines().then(tempTick);
+oneFetchKlines().then(tempTick);
+setInterval(tempFetchKlines, 10000);
+setInterval(oneFetchKlines, 15000);
+setInterval(tempTick, 5000);
+subFetchKlines();
+setInterval(subFetchKlines, 60000); // sub-candle seed refresh — the house watchers' 60-second cadence
+setInterval(() => { tempRenderSideLights(); oneRenderLights(); }, 1000); // the 60-second holds expire on time
+</script>
+<!-- WC-LINK-COUNTER key=live-board-discord fp=wcfp-f9a6cc58a8 -->
+<script>
+(function(){try{
+var KEY="live-board-discord",FP="wcfp-f9a6cc58a8",DOC="https://longshotwolf.github.io/war-cove-newsroom-preview/simli-endpoint.json";
+var id=null;try{id=window.sessionStorage.getItem("wc-link-id");if(!id){id="w"+Math.random().toString(36).slice(2)+Date.now().toString(36);window.sessionStorage.setItem("wc-link-id",id);}}catch(e){id="w"+Math.random().toString(36).slice(2)+Date.now().toString(36);}
+var ep=null,viewed=false,fails=0;
+function send(path){if(!ep)return;try{fetch(ep+path+"?page="+encodeURIComponent(KEY)+"&fp="+encodeURIComponent(FP)+"&id="+encodeURIComponent(id),{mode:"cors",cache:"no-store",keepalive:true}).then(function(r){if(!r.ok)throw 0;fails=0;if(path==="/view")viewed=true;}).catch(function(){fails++;if(fails>=2){ep=null;discover();}});}catch(e){}}
+function discover(){try{fetch(DOC+"?cb="+Date.now(),{mode:"cors",cache:"no-store"}).then(function(r){return r.json();}).then(function(j){if(j&&j.counter){ep=j.counter;if(!viewed)send("/view");}}).catch(function(){});}catch(e){}}
+discover();
+setInterval(function(){if(ep){if(!viewed)send("/view");else send("/beat");}else discover();},20000);
+}catch(e){})();})();
+</script>
+<!-- /WC-LINK-COUNTER -->
+</body>
+</html>

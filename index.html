@@ -1164,6 +1164,12 @@ const FRAMES = [
   {key:"MONTH", iv:"1M"}, {key:"WEEK", iv:"1w"}, {key:"DAY", iv:"1d"},
   {key:"6H", iv:"6h"}, {key:"4H", iv:"4h"}
 ];
+/* TEMP STRENGTH RANKING (lock exception 24, Nov 20 2026 — the Warlord's order):
+   MONTH #1 STRONGEST / THE VERY BEST · WEEK #2 · DAY #3 · 6H #4 · 4H #5 WEAKEST.
+   Display-only labels on the temp-hit flash/banner, hit cells and hit bar. */
+const TEMP_RANK = {MONTH:"#1 STRONGEST", WEEK:"#2", DAY:"#3", "6H":"#4", "4H":"#5 WEAKEST"};
+function tempRank(frame){ return TEMP_RANK[frame] || ""; }
+
 const HIT_BAND = 0.0015;    // hit while within 0.15% of the level
 const PIERCE_BAND = 0.0005; // more than 0.05% through it = through
 const TEMP_FLASH_MS = 60000;
@@ -1480,7 +1486,7 @@ function tempRenderCell(cell){
     cell.stateEl.textContent = "THROUGH — NOT HOLDING";
     cell.el.classList.add("through");
   } else if(cell.state === "hit"){
-    cell.stateEl.textContent = cell.side === "bottom" ? "BOTTOM HIT — PRICE ON IT" : "TOP HIT — PRICE ON IT";
+    cell.stateEl.textContent = (cell.side === "bottom" ? "BOTTOM HIT — PRICE ON IT" : "TOP HIT — PRICE ON IT") + " · " + tempRank(cell.frame);
     cell.el.classList.remove("through");
   } else {
     cell.stateEl.textContent = cell.dist != null ? cell.dist.toFixed(2) + "% AWAY" : "—";
@@ -1510,7 +1516,7 @@ function tempRenderSideLights(){
     bar.classList.toggle("lit-b", side === "bottom" && !!litCell);
     bar.classList.toggle("lit-t", side === "top" && !!litCell);
     bar.textContent = litCell
-      ? "💡 " + (side === "bottom" ? "BOTTOM" : "TOP") + " HIT LIT — " + NAMES[litCell.symbol] + " " + litCell.frame
+      ? "💡 " + (side === "bottom" ? "BOTTOM" : "TOP") + " HIT LIT — " + NAMES[litCell.symbol] + " " + litCell.frame + " · " + tempRank(litCell.frame)
       : (side === "bottom" ? "NO BOTTOM HIT LIT" : "NO TOP HIT LIT");
   }
 }
